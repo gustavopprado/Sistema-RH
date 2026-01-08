@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id              Int       @id @default(autoincrement())
+  name            String
+  matricula       String    @unique
+  costCenter      String
+  branch          String
+  admissionDate   DateTime  @db.Date
+  terminationDate DateTime? @db.Date
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([branch])
+  @@index([costCenter])
+  @@index([terminationDate])
+}
