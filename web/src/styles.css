@@ -1,6 +1,18 @@
 :root { font-family: system-ui, Arial, sans-serif; }
 body { margin: 0; background: #f6f7f9; color: #111; }
 
+/* Topbar / navegação */
+.topbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e6e8ee; }
+.topbar-inner { max-width: 1100px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
+.topbar-title { font-weight: 700; color: #111; }
+.topbar-nav { margin-left: auto; display: flex; gap: 8px; }
+button.tab { border-radius: 999px; padding: 8px 12px; }
+button.tab.active { background: #7bc258; border-color: #7bc258; color: #fff; }
+
+.row-diff td { background: #fff7e6; }
+.ok { color: #1a7f37; }
+.warn { color: #b42318; }
+
 .container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
 .card { background: white; border: 1px solid #e6e8ee; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
@@ -23,3 +35,40 @@ dialog::backdrop { background: rgba(0,0,0,.25); }
 .modal header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #eef0f5; }
 .modal .content { padding: 16px; }
 .modal .footer { padding: 16px; border-top: 1px solid #eef0f5; display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Coluna Status fixa */
+th.col-status, td.col-status {
+  width: 140px;
+  max-width: 140px;
+  white-space: nowrap;
+}
+
+/* Aparência do status (pill) */
+.status-pill {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f2f4f7;
+  color: #333;
+}
+
+/* Linha com falta -> vermelho bem suave */
+.row-falta td {
+  background: #fff1f1 !important; /* vermelho suave */
+}
+
+/* Botão estilo "ghost" (reset) */
+button.ghost {
+  background: #fff;
+  border: 1px solid #e6e8ee;
+  color: #333;
+}
+button.ghost:hover {
+  border-color: #cfd4dd;
+}
+/* Linha excluída -> azul bem suave */
+.row-excluido td {
+  background: #eef5ff !important; /* azul suave */
+}

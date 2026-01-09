@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE `VoucherMarketAllocation` ADD COLUMN `status` ENUM('DEFAULT', 'FALTA', 'PROPORCIONAL', 'EXCLUIDO') NOT NULL DEFAULT 'DEFAULT';
+
+-- AlterTable
+ALTER TABLE `VoucherMarketInvoice` ADD COLUMN `closedAt` DATETIME(3) NULL,
+    ADD COLUMN `status` ENUM('DRAFT', 'CLOSED') NOT NULL DEFAULT 'DRAFT';

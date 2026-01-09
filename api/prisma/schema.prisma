@@ -7,6 +7,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum VoucherInvoiceStatus {
+  DRAFT
+  CLOSED
+}
+
+enum VoucherMarketAllocationStatus {
+  DEFAULT       // 541 padrão
+  FALTA         // 0
+  PROPORCIONAL  // valor editável
+  EXCLUIDO      // 0 e não participa do vale mercado
+}
+
 model Employee {
   id              Int       @id @default(autoincrement())
   name            String
@@ -16,10 +28,51 @@ model Employee {
   admissionDate   DateTime  @db.Date
   terminationDate DateTime? @db.Date
 
+  voucherMarketExcluded Boolean @default(false)
+  voucherMarketAllocations VoucherMarketAllocation[]
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   @@index([branch])
   @@index([costCenter])
   @@index([terminationDate])
+  @@index([voucherMarketExcluded])
+}
+
+model VoucherMarketInvoice {
+  id            Int                 @id @default(autoincrement())
+  competence    DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
+  invoiceNumber String
+  invoiceValue  Decimal             @db.Decimal(10, 2)
+
+  status        VoucherInvoiceStatus @default(DRAFT)
+  closedAt      DateTime?
+
+  allocations   VoucherMarketAllocation[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([competence])
+  @@index([invoiceNumber])
+}
+
+model VoucherMarketAllocation {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int
+  employeeId Int
+
+  amount     Decimal  @db.Decimal(10, 2)
+  status     VoucherMarketAllocationStatus @default(DEFAULT)
+  note       String?
+
+  invoice    VoucherMarketInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee   Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([invoiceId, employeeId])
+  @@index([employeeId])
 }
