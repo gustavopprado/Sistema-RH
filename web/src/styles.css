@@ -3,7 +3,7 @@ body { margin: 0; background: #f6f7f9; color: #111; }
 
 /* Topbar / navegação */
 .topbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e6e8ee; }
-.topbar-inner { max-width: 1100px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
+.topbar-inner { max-width: 1400px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
 .topbar-title { font-weight: 700; color: #111; }
 .topbar-nav { margin-left: auto; display: flex; gap: 8px; }
 button.tab { border-radius: 999px; padding: 8px 12px; }
@@ -13,34 +13,106 @@ button.tab.active { background: #7bc258; border-color: #7bc258; color: #fff; }
 .ok { color: #1a7f37; }
 .warn { color: #b42318; }
 
-.container { max-width: 1100px; margin: 24px auto; padding: 0 16px; }
+.container { max-width: 1500px; margin: 24px auto; padding: 0 16px; }
 .card { background: white; border: 1px solid #e6e8ee; border-radius: 12px; padding: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+
 .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 .field { display: flex; flex-direction: column; gap: 6px; }
-input, select { padding: 10px 12px; border-radius: 10px; border: 1px solid #d8dbe3; background: white; min-width: 180px; }
+
+/* Inputs padrão (fora da tabela) */
+input, select {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d8dbe3;
+  background: white;
+}
+
+/* ✅ Se você precisa desse "min-width" para os campos do topo, aplique só lá */
+.row .field input,
+.row .field select {
+  min-width: 180px;
+}
+
+/* Tabela */
+.table-wrap { width: 100%; overflow-x: hidden; }
 table { width: 100%; border-collapse: collapse; }
-th, td { padding: 10px 8px; border-bottom: 1px solid #eef0f5; text-align: left; font-size: 14px; }
+.table { width: 100%; table-layout: fixed; }
+
+th, td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #eef0f5;
+  text-align: left;
+  font-size: 14px;
+  vertical-align: middle;
+  overflow: hidden;          /* ✅ evita “vazar” visualmente */
+  text-overflow: ellipsis;
+}
+
 th { font-size: 12px; letter-spacing: .02em; text-transform: uppercase; color: #555; }
-.actions { display: flex; gap: 8px; }
 
-button { cursor: pointer; padding: 10px 12px; border-radius: 10px; border: 1px solid #d8dbe3; background: #fff; }
-button.primary { background: #7bc258; border-color: #7bc258; color: white; }
-button.danger { background: #fff; border-color: #e0b4b4; }
-.badge { padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #d8dbe3; background: #fff; }
-.badge.inactive { background: #f2f2f2; }
+/* ✅ Input dentro da tabela NÃO pode ter min-width */
+.table input {
+  min-width: 0 !important;
+}
 
-dialog { border: none; border-radius: 12px; padding: 0; width: min(680px, 95vw); }
-dialog::backdrop { background: rgba(0,0,0,.25); }
-.modal { padding: 16px; }
-.modal header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #eef0f5; }
-.modal .content { padding: 16px; }
-.modal .footer { padding: 16px; border-top: 1px solid #eef0f5; display: flex; gap: 8px; justify-content: flex-end; }
+/* Colunas (layout) */
+.col-name      { width: 26%; white-space: nowrap; }
+.col-matricula { width: 7%; }
+.col-filial    { width: 5%; }
+.col-centro    { width: 7%; }
 
 /* Coluna Status fixa */
 th.col-status, td.col-status {
   width: 140px;
   max-width: 140px;
   white-space: nowrap;
+}
+
+/* Valor e dinheiro */
+.col-value { width: 12%; padding-right: 14px; overflow: visible; }
+.col-money { width: 10%; }
+
+.money {
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ✅ input do valor não “come” a borda */
+.value-input {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Ações */
+.col-actions { width: 14%; overflow: visible; }
+
+/* ✅ aqui fica SÓ grid (remove o flex duplicado) */
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  align-items: center;
+}
+
+/* padrão dos botões */
+.actions button {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+/* ✅ Proporcional: diminui um pouco pra caber sem cortar */
+.actions .btn-prop {
+  font-size: 13px;
+  padding: 10px 8px;
+  letter-spacing: -0.2px; /* ajuda a caber */
 }
 
 /* Aparência do status (pill) */
@@ -55,20 +127,34 @@ th.col-status, td.col-status {
 }
 
 /* Linha com falta -> vermelho bem suave */
-.row-falta td {
-  background: #fff1f1 !important; /* vermelho suave */
+.row-falta td { background: #fff1f1 !important; }
+
+/* Linha excluída -> azul bem suave */
+.row-excluido td { background: #eef5ff !important; }
+
+/* Botões */
+button {
+  cursor: pointer;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d8dbe3;
+  background: #fff;
 }
 
+button.primary { background: #7bc258; border-color: #7bc258; color: white; }
+button.danger { background: #fff; border-color: #e0b4b4; }
+
 /* Botão estilo "ghost" (reset) */
-button.ghost {
-  background: #fff;
-  border: 1px solid #e6e8ee;
-  color: #333;
-}
-button.ghost:hover {
-  border-color: #cfd4dd;
-}
-/* Linha excluída -> azul bem suave */
-.row-excluido td {
-  background: #eef5ff !important; /* azul suave */
-}
+button.ghost { background: #fff; border: 1px solid #e6e8ee; color: #333; }
+button.ghost:hover { border-color: #cfd4dd; }
+
+.badge { padding: 4px 8px; border-radius: 999px; font-size: 12px; border: 1px solid #d8dbe3; background: #fff; }
+.badge.inactive { background: #f2f2f2; }
+
+/* Modal */
+dialog { border: none; border-radius: 12px; padding: 0; width: min(680px, 95vw); }
+dialog::backdrop { background: rgba(0,0,0,.25); }
+.modal { padding: 16px; }
+.modal header { display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid #eef0f5; }
+.modal .content { padding: 16px; }
+.modal .footer { padding: 16px; border-top: 1px solid #eef0f5; display: flex; gap: 8px; justify-content: flex-end; }

@@ -31,6 +31,10 @@ function clamp2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+function fmtMoney(n: number) {
+  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 function Donut95_5({ total }: { total: number }) {
   const company = total * 0.95;
   const employees = total * 0.05;
@@ -424,82 +428,94 @@ async function closeMonth() {
             </label>
           </div>
 
-          <table>
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Matrícula</th>
-                <th>Filial</th>
-                <th>Centro</th>
-                <th className="col-status">Status</th>
-                <th>Valor</th>
-                <th></th>
-              </tr>
-            </thead>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="col-name">Nome</th>
+                  <th className="col-matricula">Matrícula</th>
+                  <th className="col-filial">Filial</th>
+                  <th className="col-centro">Centro</th>
+                  <th className="col-status">Status</th>
+                  <th className="col-value">Valor</th>
+                  <th className="col-money money">Empresa (95%)</th>
+                  <th className="col-money money">Funcionário (5%)</th>
+                  <th className="col-actions"></th>
+                </tr>
+              </thead>
 
-            <tbody>
-              {rows.map((a: any) => {
-                const disabledEdit = isClosed || a.status !== "PROPORCIONAL";
-                const label =
-                  a.status === "DEFAULT"
-                    ? "Padrão"
-                    : a.status === "FALTA"
-                    ? "Falta"
-                    : a.status === "EXCLUIDO"
-                    ? "Excluído"
-                    : "Proporcional";
+              <tbody>
+                {rows.map((a: any) => {
+                  const disabledEdit = isClosed || a.status !== "PROPORCIONAL";
+                  const label =
+                    a.status === "DEFAULT"
+                      ? "Padrão"
+                      : a.status === "FALTA"
+                      ? "Falta"
+                      : a.status === "EXCLUIDO"
+                      ? "Excluído"
+                      : "Proporcional";
 
-                return (
-                  <tr
-                    key={a.employeeId}
-                    className={[
+                  return (
+                    <tr
+                      key={a.employeeId}
+                      className={[
                         a.isDiff ? "row-diff" : "",
                         a.status === "FALTA" ? "row-falta" : "",
                         a.status === "EXCLUIDO" ? "row-excluido" : "",
-                    ].join(" ").trim()}
+                      ].join(" ").trim()}
                     >
-                    <td>{a.employee.name}</td>
-                    <td>{a.employee.matricula}</td>
-                    <td>{a.employee.branch}</td>
-                    <td>{a.employee.costCenter}</td>
-                    <td className="col-status">
+                      <td className="col-name">{a.employee.name}</td>
+                      <td className="col-matricula">{a.employee.matricula}</td>
+                      <td className="col-filial">{a.employee.branch}</td>
+                      <td className="col-centro">{a.employee.costCenter}</td>
+
+                      <td className="col-status">
                         <span className="status-pill">{label}</span>
-                    </td>
-                    <td style={{ width: 180 }}>
-                      <input
-                        inputMode="decimal"
-                        value={String(a.amount)}
-                        disabled={disabledEdit}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          updateLocal(a.employeeId, { amount: v });
-                        }}
-                      />
-                    </td>
-                    <td style={{ width: 320 }}>
-                        <div className="actions" style={{ gap: 8 }}>
-                        <button className="danger" onClick={() => setFalta(a)} disabled={isClosed}>
+                      </td>
+
+                      <td className="col-value">
+                        <input
+                          className="value-input"
+                          inputMode="decimal"
+                          value={String(a.amount)}
+                          disabled={disabledEdit}
+                          onChange={(e) => updateLocal(a.employeeId, { amount: e.target.value })}
+                        />
+                      </td>
+
+                      <td className="col-money money">{fmtMoney(num(a.amount) * 0.95)}</td>
+                      <td className="col-money money">{fmtMoney(num(a.amount) * 0.05)}</td>
+
+                      <td className="col-actions">
+                        <div className="actions">
+                          <button className="danger" onClick={() => setFalta(a)} disabled={isClosed}>
                             Falta
-                        </button>
-
-                        <button onClick={() => setProporcional(a)} disabled={isClosed}>
+                          </button>
+                          
+                          <button
+                            className="btn-prop"
+                            onClick={() => setProporcional(a)}
+                            disabled={isClosed}
+                          >
                             Proporcional
-                        </button>
+                          </button>
 
-                        <button onClick={() => setExcluir(a)} disabled={isClosed}>
+                          <button onClick={() => setExcluir(a)} disabled={isClosed}>
                             Excluir
-                        </button>
+                          </button>
 
-                        <button className="ghost" onClick={() => setReset(a)} disabled={isClosed}>
+                          <button className="ghost" onClick={() => setReset(a)} disabled={isClosed}>
                             Reset
-                        </button>
+                          </button>
                         </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           {isClosed && (
             <div style={{ marginTop: 10, fontSize: 12, color: "#b42318" }}>
