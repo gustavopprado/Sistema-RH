@@ -1,13 +1,56 @@
 :root { font-family: system-ui, Arial, sans-serif; }
 body { margin: 0; background: #f6f7f9; color: #111; }
 
-/* Topbar / navegação */
-.topbar { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #e6e8ee; }
-.topbar-inner { max-width: 1400px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; gap: 12px; }
-.topbar-title { font-weight: 700; color: #111; }
-.topbar-nav { margin-left: auto; display: flex; gap: 8px; }
-button.tab { border-radius: 999px; padding: 8px 12px; }
-button.tab.active { background: #7bc258; border-color: #7bc258; color: #fff; }
+/* Layout (Sidebar) */
+.app-layout { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 240px;
+  background: #fff;
+  border-right: 1px solid #e6e8ee;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  height: 100vh;
+  padding: 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-head { margin-bottom: 12px; }
+.sidebar-title { font-weight: 800; color: #111; }
+.sidebar-sub { font-size: 12px; color: #667085; margin-top: 4px; }
+
+.sidebar-nav { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+
+.sidebtn {
+  text-align: left;
+  width: 100%;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e6e8ee;
+  background: #fff;
+}
+
+.sidebtn.active {
+  background: #7bc258;
+  border-color: #7bc258;
+  color: #fff;
+  font-weight: 700;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid #eef0f5;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.content { flex: 1; min-width: 0; }
 
 .row-diff td { background: #fff7e6; }
 .ok { color: #1a7f37; }
@@ -70,6 +113,7 @@ th.col-status, td.col-status {
 
 /* Valor e dinheiro */
 .col-value { width: 12%; padding-right: 14px; overflow: visible; }
+.col-20 { width: 14%; padding-right: 14px; overflow: visible; }
 .col-money { width: 10%; }
 
 .money {

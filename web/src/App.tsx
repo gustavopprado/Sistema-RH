@@ -1,390 +1,75 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { api, Employee } from "./api";
+import React, { useEffect, useMemo, useState } from "react";
+import EmployeesPage from "./pages/EmployeesPage";
+import ValeMercadoPage from "./pages/ValeMercadoPage";
+import ValeRefeicaoPage from "./pages/ValeRefeicaoPage";
 
-type ListResponse = { items: Employee[]; total: number; page: number; pageSize: number };
+type Route = "employees" | "vale-mercado" | "vale-refeicao";
 
-function toDateInputValue(iso: string) {
-  // ISO -> YYYY-MM-DD
-  return iso.slice(0, 10);
-}
-
-function formatBrDate(iso: string | null) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const yyyy = d.getUTCFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+function getRouteFromHash(): Route {
+  const h = (window.location.hash || "#/employees").replace("#", "");
+  if (h.startsWith("/vale-mercado")) return "vale-mercado";
+  if (h.startsWith("/vale-refeicao")) return "vale-refeicao";
+  return "employees";
 }
 
 export default function App() {
-  const [items, setItems] = useState<Employee[]>([]);
-  const [total, setTotal] = useState(0);
-
-  const [status, setStatus] = useState<"active" | "inactive" | "all">("active");
-
-  // Debounce na busca para não martelar o banco a cada tecla
-  const [searchDraft, setSearchDraft] = useState("");
-  const [search, setSearch] = useState("");
-
-  const [branch, setBranch] = useState("");
-  const [costCenter, setCostCenter] = useState("");
-
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
-
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const [editing, setEditing] = useState<Employee | null>(null);
-
-  const [form, setForm] = useState({
-    name: "",
-    matricula: "",
-    costCenter: "",
-    branch: "",
-    admissionDate: "",
-    terminationDate: "",
-  });
-
-  // Modal de demissão
-  const terminateDialogRef = useRef<HTMLDialogElement>(null);
-  const [terminating, setTerminating] = useState<Employee | null>(null);
-  const [terminationDate, setTerminationDate] = useState(() => new Date().toISOString().slice(0, 10));
-
-  function openCreate() {
-    setEditing(null);
-    setForm({ name: "", matricula: "", costCenter: "", branch: "", admissionDate: "", terminationDate: "" });
-    dialogRef.current?.showModal();
-  }
-
-  function openEdit(e: Employee) {
-    setEditing(e);
-    setForm({
-      name: e.name,
-      matricula: e.matricula,
-      costCenter: e.costCenter,
-      branch: e.branch,
-      admissionDate: toDateInputValue(e.admissionDate),
-      terminationDate: e.terminationDate ? toDateInputValue(e.terminationDate) : "",
-    });
-    dialogRef.current?.showModal();
-  }
-
-  function closeModal() {
-    dialogRef.current?.close();
-  }
-
-  function openTerminate(e: Employee) {
-    setTerminating(e);
-    setTerminationDate(new Date().toISOString().slice(0, 10));
-    terminateDialogRef.current?.showModal();
-  }
-
-  function closeTerminateModal() {
-    terminateDialogRef.current?.close();
-    setTerminating(null);
-  }
-
-  async function load() {
-    const { data } = await api.get<ListResponse>("/employees", {
-      params: { status, search, branch, costCenter, page, pageSize },
-    });
-    setItems(data.items);
-    setTotal(data.total);
-  }
-
-  // Debounce da busca
-  useEffect(() => {
-    const t = setTimeout(() => {
-      setSearch(searchDraft.trim());
-      setPage(1);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [searchDraft]);
+  const [route, setRoute] = useState<Route>(() => getRouteFromHash());
 
   useEffect(() => {
-    load();
-  }, [status, search, branch, costCenter, page]);
+    const onHash = () => setRoute(getRouteFromHash());
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
 
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total]);
+  const title = useMemo(() => {
+    if (route === "vale-mercado") return "Vale Mercado";
+    if (route === "vale-refeicao") return "Vale Refeição";
+    return "Funcionários";
+  }, [route]);
 
-  async function save() {
-    const payload: any = {
-      name: form.name,
-      costCenter: form.costCenter,
-      branch: form.branch,
-      admissionDate: form.admissionDate,
-    };
-
-    if (!editing) {
-      payload.matricula = form.matricula;
-    }
-
-    // terminationDate só se o RH quiser colocar manualmente
-    if (form.terminationDate) payload.terminationDate = form.terminationDate;
-
-    if (!editing) {
-      await api.post("/employees", payload);
-    } else {
-      await api.put(`/employees/${editing.id}`, payload);
-    }
-
-    closeModal();
-    await load();
-  }
-
-  async function submitTerminate() {
-    if (!terminating) return;
-    if (!terminationDate) return;
-
-    await api.patch(`/employees/${terminating.id}/terminate`, { terminationDate });
-    closeTerminateModal();
-    await load();
-  }
-
-  async function reactivate(e: Employee) {
-    if (!confirm("Reativar (limpar demissão)?")) return;
-    await api.patch(`/employees/${e.id}/reactivate`);
-    await load();
+  function go(to: Route) {
+    if (to === "employees") window.location.hash = "#/employees";
+    else if (to === "vale-mercado") window.location.hash = "#/vale-mercado";
+    else window.location.hash = "#/vale-refeicao";
   }
 
   return (
-    <div className="container">
-      <h1 style={{ margin: "0 0 12px 0" }}>Funcionários</h1>
-
-      <div className="card" style={{ marginBottom: 12 }}>
-        <div className="row">
-          <div className="field">
-            <label>Status</label>
-            <select
-              value={status}
-              onChange={(e) => {
-                setStatus(e.target.value as any);
-                setPage(1);
-              }}
-            >
-              <option value="active">Ativos</option>
-              <option value="inactive">Demitidos</option>
-              <option value="all">Todos</option>
-            </select>
-          </div>
-
-          <div className="field">
-            <label>Busca (nome ou matrícula)</label>
-            <input
-              value={searchDraft}
-              onChange={(e) => setSearchDraft(e.target.value)}
-              placeholder="Ex: 5625 ou Adelina"
-            />
-          </div>
-
-          <div className="field">
-            <label>Filial</label>
-            <input
-              value={branch}
-              onChange={(e) => {
-                setBranch(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Ex: 1"
-            />
-          </div>
-
-          <div className="field">
-            <label>Centro de Custo</label>
-            <input
-              value={costCenter}
-              onChange={(e) => {
-                setCostCenter(e.target.value);
-                setPage(1);
-              }}
-              placeholder="Ex: 2253"
-            />
-          </div>
-
-          <div style={{ marginLeft: "auto" }}>
-            <button className="primary" onClick={openCreate}>
-              Novo funcionário
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div>
-            <b>Total:</b> {total}
-          </div>
-          <div className="actions">
-            <button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-              Anterior
-            </button>
-            <span style={{ padding: "10px 0" }}>
-              {page} / {totalPages}
-            </span>
-            <button disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
-              Próxima
-            </button>
-          </div>
+    <div className="app-layout">
+      <aside className="sidebar">
+        <div className="sidebar-head">
+          <div className="sidebar-title">RH • Custos</div>
+          <div className="sidebar-sub">Gestão de benefícios</div>
         </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Nome</th>
-              <th>Matrícula</th>
-              <th>Centro</th>
-              <th>Filial</th>
-              <th>Admissão</th>
-              <th>Demissão</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((e) => {
-              const inactive = Boolean(e.terminationDate);
-              return (
-                <tr key={e.id}>
-                  <td>{e.name}</td>
-                  <td>{e.matricula}</td>
-                  <td>{e.costCenter}</td>
-                  <td>{e.branch}</td>
-                  <td>{formatBrDate(e.admissionDate)}</td>
-                  <td>{formatBrDate(e.terminationDate)}</td>
-                  <td>
-                    <span className={"badge" + (inactive ? " inactive" : "")}>{inactive ? "Demitido" : "Ativo"}</span>
-                  </td>
-                  <td>
-                    <div className="actions">
-                      <button onClick={() => openEdit(e)}>Editar</button>
-                      {!inactive ? (
-                        <button className="danger" onClick={() => openTerminate(e)}>
-                          Demitir
-                        </button>
-                      ) : (
-                        <button onClick={() => reactivate(e)}>Reativar</button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+        <nav className="sidebar-nav">
+          <button className={"sidebtn" + (route === "employees" ? " active" : "")} onClick={() => go("employees")}>
+            Funcionários
+          </button>
 
-      {/* Modal Criar/Editar */}
-      <dialog ref={dialogRef}>
-        <div className="modal">
-          <header>
-            <b>{editing ? "Editar funcionário" : "Novo funcionário"}</b>
-            <button onClick={closeModal}>Fechar</button>
-          </header>
+          <button
+            className={"sidebtn" + (route === "vale-mercado" ? " active" : "")}
+            onClick={() => go("vale-mercado")}
+          >
+            Vale Mercado
+          </button>
 
-          <div className="content">
-            <div className="row">
-              <div className="field" style={{ flex: 1 }}>
-                <label>Nome</label>
-                <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-              </div>
+          <button
+            className={"sidebtn" + (route === "vale-refeicao" ? " active" : "")}
+            onClick={() => go("vale-refeicao")}
+          >
+            Vale Refeição
+          </button>
+        </nav>
 
-              <div className="field">
-                <label>Matrícula</label>
-                <input
-                  value={form.matricula}
-                  disabled={Boolean(editing)}
-                  onChange={(e) => setForm((f) => ({ ...f, matricula: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="row" style={{ marginTop: 12 }}>
-              <div className="field">
-                <label>Centro de Custo</label>
-                <input
-                  value={form.costCenter}
-                  onChange={(e) => setForm((f) => ({ ...f, costCenter: e.target.value }))}
-                />
-              </div>
-
-              <div className="field">
-                <label>Filial</label>
-                <input value={form.branch} onChange={(e) => setForm((f) => ({ ...f, branch: e.target.value }))} />
-              </div>
-
-              <div className="field">
-                <label>Admissão</label>
-                <input
-                  type="date"
-                  value={form.admissionDate}
-                  onChange={(e) => setForm((f) => ({ ...f, admissionDate: e.target.value }))}
-                />
-              </div>
-
-              <div className="field">
-                <label>Demissão (opcional)</label>
-                <input
-                  type="date"
-                  value={form.terminationDate}
-                  onChange={(e) => setForm((f) => ({ ...f, terminationDate: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <p style={{ fontSize: 12, color: "#555", marginTop: 12 }}>
-              Dica: para demitir, use o botão “Demitir” na tabela (recomendado).
-            </p>
-          </div>
-
-          <div className="footer">
-            <button onClick={closeModal}>Cancelar</button>
-            <button className="primary" onClick={save}>
-              Salvar
-            </button>
-          </div>
+        <div className="sidebar-foot">
+          <span style={{ fontSize: 12, color: "#667085" }}>Atual:</span>
+          <b style={{ fontSize: 13 }}>{title}</b>
         </div>
-      </dialog>
+      </aside>
 
-      {/* Modal Demissão */}
-      <dialog ref={terminateDialogRef}>
-        <div className="modal">
-          <header>
-            <b>Demitir funcionário</b>
-            <button onClick={closeTerminateModal}>Fechar</button>
-          </header>
-
-          <div className="content">
-            {terminating && (
-              <>
-                <div style={{ marginBottom: 12 }}>
-                  <div>
-                    <b>Nome:</b> {terminating.name}
-                  </div>
-                  <div>
-                    <b>Matrícula:</b> {terminating.matricula}
-                  </div>
-                </div>
-
-                <div className="field" style={{ maxWidth: 260 }}>
-                  <label>Data de demissão</label>
-                  <input type="date" value={terminationDate} onChange={(e) => setTerminationDate(e.target.value)} />
-                </div>
-
-                <p style={{ fontSize: 12, color: "#555", marginTop: 12 }}>
-                  Observação: a demissão não remove o funcionário do sistema, apenas marca a data.
-                </p>
-              </>
-            )}
-          </div>
-
-          <div className="footer">
-            <button onClick={closeTerminateModal}>Cancelar</button>
-            <button className="danger" onClick={submitTerminate} disabled={!terminating || !terminationDate}>
-              Confirmar demissão
-            </button>
-          </div>
-        </div>
-      </dialog>
+      <main className="content">
+        {route === "employees" ? <EmployeesPage /> : route === "vale-mercado" ? <ValeMercadoPage /> : <ValeRefeicaoPage />}
+      </main>
     </div>
   );
 }

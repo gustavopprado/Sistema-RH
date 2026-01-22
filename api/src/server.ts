@@ -3,6 +3,8 @@ import express from "express";
 import cors from "cors";
 import { employeesRouter } from "./routes/employees";
 import { voucherMarketRouter } from "./routes/voucherMarket";
+import { voucherMealRouter } from "./routes/voucherMeal";
+import { valeRefeicaoRouter } from "./routes/valeRefeicao";
 
 const app = express();
 
@@ -18,6 +20,12 @@ app.use("/employees", employeesRouter);
 
 // Vale Mercado
 app.use("/voucher-market", voucherMarketRouter);
+
+// Vale Refeição
+app.use("/voucher-meal", voucherMealRouter);
+
+app.use("/vale-refeicao", valeRefeicaoRouter);
+
 
 const port = Number(process.env.PORT ?? 3333);
 app.listen(port, () => {

@@ -15,6 +15,8 @@ export type Employee = {
   branch: string;
   admissionDate: string;
   terminationDate: string | null;
+  voucherMarketExcluded: boolean;
+  voucherMealExcluded: boolean;
 };
 
 // --------------------
@@ -50,5 +52,38 @@ export type VoucherMarketInvoiceDetails = {
     diff: string;
     company95: string;
     employees5: string;
+  };
+};
+
+// --------------------
+// Types (Vale Refeição)
+// --------------------
+export type VoucherMealInvoice = {
+  id: number;
+  competence: string;
+  invoiceSecondHalf: string;
+  invoiceFirstHalfNext: string;
+  status: VoucherInvoiceStatus;
+  closedAt: string | null;
+};
+
+export type VoucherMealAllocation = {
+  id: number;
+  employeeId: number;
+  employee20: string;
+  company80: string;
+  total100: string;
+  employee: Employee;
+};
+
+export type VoucherMealInvoiceDetails = {
+  invoice: VoucherMealInvoice;
+  allocations: VoucherMealAllocation[];
+  totals: {
+    invoiceTotal: string;
+    sumTotal100: string;
+    sumCompany80: string;
+    sumEmployee20: string;
+    diff: string;
   };
 };

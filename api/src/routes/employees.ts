@@ -12,11 +12,19 @@ const EmployeeCreateSchema = z.object({
   branch: z.string().min(1),
   admissionDate: z.string().min(1), // YYYY-MM-DD ou YYYYMMDD
   terminationDate: z.string().optional().nullable(), // YYYY-MM-DD ou YYYYMMDD ou null
+
+  // ✅ NOVO: participação em benefícios/custos
+  voucherMarketExcluded: z.boolean().optional(),
+  voucherMealExcluded: z.boolean().optional(),
 });
 
 const EmployeeUpdateSchema = EmployeeCreateSchema.partial().extend({
   admissionDate: z.string().optional(),
   terminationDate: z.string().optional().nullable(),
+
+  // ✅ garante que update aceite também
+  voucherMarketExcluded: z.boolean().optional(),
+  voucherMealExcluded: z.boolean().optional(),
 });
 
 // GET /employees?status=active|inactive|all&search=&branch=&costCenter=&page=&pageSize=
@@ -94,6 +102,8 @@ employeesRouter.post("/", async (req, res) => {
         branch: normalizeSimple(b.branch),
         admissionDate,
         terminationDate,
+        voucherMarketExcluded: b.voucherMarketExcluded ?? false,
+        voucherMealExcluded: b.voucherMealExcluded ?? false,
       },
     });
     res.status(201).json(created);
@@ -144,6 +154,8 @@ employeesRouter.put("/:id", async (req, res) => {
       branch: b.branch ? normalizeSimple(b.branch) : undefined,
       admissionDate: b.admissionDate ? admissionDate : undefined,
       terminationDate: b.terminationDate !== undefined ? terminationDate : undefined,
+      voucherMarketExcluded: b.voucherMarketExcluded,
+      voucherMealExcluded: b.voucherMealExcluded,
     },
   });
 

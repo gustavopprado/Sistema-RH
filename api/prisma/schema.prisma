@@ -31,6 +31,9 @@ model Employee {
   voucherMarketExcluded Boolean @default(false)
   voucherMarketAllocations VoucherMarketAllocation[]
 
+  voucherMealAllocations   VoucherMealAllocation[]
+  voucherMealExcluded Boolean @default(false)
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -38,6 +41,50 @@ model Employee {
   @@index([costCenter])
   @@index([terminationDate])
   @@index([voucherMarketExcluded])
+  @@index([voucherMealExcluded])
+}
+
+model VoucherMealInvoice {
+  id                  Int                 @id @default(autoincrement())
+  competence           DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
+
+  // A empresa recebe DUAS notas para o mês:
+  // - 2ª quinzena do mês (competência)
+  // - 1ª quinzena do mês seguinte
+  invoiceSecondHalf    Decimal             @db.Decimal(12, 2)
+  invoiceFirstHalfNext Decimal             @db.Decimal(12, 2)
+
+  status               VoucherInvoiceStatus @default(DRAFT)
+  closedAt             DateTime?
+
+  allocations          VoucherMealAllocation[]
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([competence])
+}
+
+model VoucherMealAllocation {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int
+  employeeId Int
+
+  // Valor lançado (20%) = desconto do funcionário
+  employee20 Decimal  @db.Decimal(12, 2)
+  // 80% = empresa
+  company80  Decimal  @db.Decimal(12, 2)
+  // 100% = total
+  total100   Decimal  @db.Decimal(12, 2)
+
+  invoice    VoucherMealInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee   Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([invoiceId, employeeId])
+  @@index([employeeId])
 }
 
 model VoucherMarketInvoice {

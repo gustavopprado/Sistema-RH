@@ -416,7 +416,8 @@ async function closeMonth() {
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div>
-              <b>Funcionários do mês</b>
+              <b>Funcionários do mês</b>{" "}
+              <span style={{ fontSize: 12, color: "#555" }}>({rows.length})</span>
               <div style={{ fontSize: 12, color: "#555" }}>
                 Padrão: {moneyBRL(BASE)} • Use [Falta] [Proporcional] [Excluir]
               </div>
