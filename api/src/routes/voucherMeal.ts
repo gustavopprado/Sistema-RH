@@ -60,6 +60,119 @@ function defaultAllocationForEmployee(e: { id: number }) {
   };
 }
 
+const LINE_KINDS = [
+  // Almoço (colaboradores)
+  "MEAL_LUNCH",
+
+  // Terceiros / visitantes / doação
+  "MEAL_LUNCH_THIRD_PARTY",
+  "MEAL_LUNCH_VISITORS",
+  "MEAL_LUNCH_DONATION",
+
+  // Café / lanches (empresa)
+  "COFFEE_SANDWICH",
+  "COFFEE_COFFEE_LITER",
+  "COFFEE_COFFEE_MILK_LITER",
+  "COFFEE_MILK_LITER",
+  "SPECIAL_SERVICE",
+] as const;
+
+const PARTS = ["SECOND_HALF", "FIRST_HALF_NEXT"] as const;
+
+type LineKind = (typeof LINE_KINDS)[number];
+type InvoicePart = (typeof PARTS)[number];
+
+const LineInputSchema = z.object({
+  part: z.enum(PARTS),
+  kind: z.enum(LINE_KINDS),
+  amount: z.union([z.string(), z.number()]),
+});
+
+function isCoffeeKind(kind: LineKind) {
+  return (
+    kind === "COFFEE_SANDWICH" ||
+    kind === "COFFEE_COFFEE_LITER" ||
+    kind === "COFFEE_COFFEE_MILK_LITER" ||
+    kind === "COFFEE_MILK_LITER" ||
+    kind === "SPECIAL_SERVICE"
+  );
+}
+
+function isThirdPartyKind(kind: LineKind) {
+  return (
+    kind === "MEAL_LUNCH_THIRD_PARTY" || kind === "MEAL_LUNCH_VISITORS" || kind === "MEAL_LUNCH_DONATION"
+  );
+}
+
+function isLunchKind(kind: LineKind) {
+  return kind === "MEAL_LUNCH";
+}
+
+async function ensureDefaultLines(invoiceId: number) {
+  // cria todas as linhas (part x kind) com 0.00 se não existirem
+  const data = [] as Array<any>;
+  for (const part of PARTS) {
+    for (const kind of LINE_KINDS) {
+      data.push({
+        invoiceId,
+        part,
+        kind,
+        amount: "0.00",
+      });
+    }
+  }
+  await prisma.voucherMealInvoiceLine.createMany({ data, skipDuplicates: true });
+}
+
+function sumLines(lines: Array<{ part: InvoicePart; kind: LineKind; amount: any }>) {
+  const byPart: Record<InvoicePart, number> = { SECOND_HALF: 0, FIRST_HALF_NEXT: 0 };
+  let lunchTotal = 0;
+  let coffeeTotal = 0;
+  let thirdPartyTotal = 0;
+
+  const thirdParty = { visitors: 0, thirdParty: 0, donation: 0 };
+
+  for (const l of lines) {
+    const v = Number(l.amount);
+    if (!Number.isFinite(v)) continue;
+    byPart[l.part] += v;
+
+    if (isLunchKind(l.kind)) lunchTotal += v;
+    if (isCoffeeKind(l.kind)) coffeeTotal += v;
+    if (isThirdPartyKind(l.kind)) {
+      thirdPartyTotal += v;
+      if (l.kind === "MEAL_LUNCH_VISITORS") thirdParty.visitors += v;
+      if (l.kind === "MEAL_LUNCH_THIRD_PARTY") thirdParty.thirdParty += v;
+      if (l.kind === "MEAL_LUNCH_DONATION") thirdParty.donation += v;
+    }
+  }
+
+  const invoiceTotal = byPart.SECOND_HALF + byPart.FIRST_HALF_NEXT;
+  return {
+    byPart,
+    invoiceTotal,
+    lunchTotal,
+    coffeeTotal,
+    thirdPartyTotal,
+    thirdParty,
+  };
+}
+
+/**
+ * Filtro de colaboradores para o Vale Refeição:
+ * - não excluídos (voucherMealExcluded=false)
+ * - NÃO incluir filial 2 (branch != "2")
+ * - trabalharam no período (admissão <= fim do mês; demissão null ou >= início)
+ */
+function employeesWhereForMonth(start: Date, end: Date) {
+  return {
+    voucherMealExcluded: false,
+    branch: { not: "2" },
+    admissionDate: { lte: end },
+    OR: [{ terminationDate: null }, { terminationDate: { gte: start } }],
+  } as const;
+}
+
 // GET /voucher-meal/invoices/by-month?month=YYYY-MM
 voucherMealRouter.get("/invoices/by-month", async (req, res) => {
   try {
@@ -73,6 +186,8 @@ voucherMealRouter.get("/invoices/by-month", async (req, res) => {
       select: {
         id: true,
         competence: true,
+        invoiceSecondHalfNumber: true,
+        invoiceFirstHalfNextNumber: true,
         invoiceSecondHalf: true,
         invoiceFirstHalfNext: true,
         status: true,
@@ -85,6 +200,8 @@ voucherMealRouter.get("/invoices/by-month", async (req, res) => {
         ? {
             id: invoice.id,
             competence: invoice.competence,
+            invoiceSecondHalfNumber: invoice.invoiceSecondHalfNumber,
+            invoiceFirstHalfNextNumber: invoice.invoiceFirstHalfNextNumber,
             invoiceSecondHalf: Number(invoice.invoiceSecondHalf).toFixed(2),
             invoiceFirstHalfNext: Number(invoice.invoiceFirstHalfNext).toFixed(2),
             status: invoice.status,
@@ -104,8 +221,9 @@ voucherMealRouter.post("/invoices", async (req, res) => {
   try {
     const schema = z.object({
       month: z.string().min(1),
-      invoiceSecondHalf: z.union([z.string().min(1), z.number()]).optional(),
-      invoiceFirstHalfNext: z.union([z.string().min(1), z.number()]).optional(),
+      invoiceSecondHalfNumber: z.string().optional(),
+      invoiceFirstHalfNextNumber: z.string().optional(),
+      lines: z.array(LineInputSchema).optional(),
     });
 
     const parsed = schema.safeParse(req.body);
@@ -114,20 +232,11 @@ voucherMealRouter.post("/invoices", async (req, res) => {
     }
 
     const competence = parseMonthToDate(parsed.data.month);
-
-    const invoiceSecondHalf = asMoneyString(parsed.data.invoiceSecondHalf ?? 0);
-    const invoiceFirstHalfNext = asMoneyString(parsed.data.invoiceFirstHalfNext ?? 0);
-
     const { start, end } = monthRange(competence);
 
-    // ✅ funcionários que trabalharam no mês E participam do VR E NÃO são Filial 2
+    // funcionários que trabalharam no mês (com filtro de exclusão e filial)
     const employees = await prisma.employee.findMany({
-      where: {
-        voucherMealExcluded: false,
-        branch: { not: "2" }, // ✅ nunca incluir filial 2
-        admissionDate: { lte: end },
-        OR: [{ terminationDate: null }, { terminationDate: { gte: start } }],
-      },
+      where: employeesWhereForMonth(start, end),
       select: { id: true },
     });
 
@@ -137,14 +246,39 @@ voucherMealRouter.post("/invoices", async (req, res) => {
     });
 
     if (already) {
-      if (already.status === "DRAFT" && employees.length) {
-        await prisma.voucherMealAllocation.createMany({
-          data: employees.map((e) => ({ invoiceId: already.id, ...defaultAllocationForEmployee(e) })),
-          skipDuplicates: true,
-        });
+      if (already.status === "DRAFT") {
+        // garante linhas e garante alocações (para novas admissões retroativas)
+        await ensureDefaultLines(already.id);
+
+        if (employees.length) {
+          await prisma.voucherMealAllocation.createMany({
+            data: employees.map((e) => ({ invoiceId: already.id, ...defaultAllocationForEmployee(e) })),
+            skipDuplicates: true,
+          });
+        }
       }
       return res.status(200).json({ invoiceId: already.id, existed: true });
     }
+
+    // Monta linhas iniciais (se vierem do front) ou cria defaults 0
+    const provided = parsed.data.lines ?? [];
+    const providedMap = new Map<string, string>();
+    for (const l of provided) {
+      const key = `${l.part}:${l.kind}`;
+      providedMap.set(key, asMoneyString(l.amount));
+    }
+
+    const linesToCreate: Array<{ part: InvoicePart; kind: LineKind; amount: string }> = [];
+    for (const part of PARTS) {
+      for (const kind of LINE_KINDS) {
+        const key = `${part}:${kind}`;
+        linesToCreate.push({ part, kind, amount: providedMap.get(key) ?? "0.00" });
+      }
+    }
+
+    // totais por nota = soma das linhas do respectivo part
+    const linesForSum = linesToCreate.map((l) => ({ ...l, amount: Number(l.amount) }));
+    const sums = sumLines(linesForSum as any);
 
     let invoiceId: number;
 
@@ -152,31 +286,41 @@ voucherMealRouter.post("/invoices", async (req, res) => {
       const created = await prisma.voucherMealInvoice.create({
         data: {
           competence,
-          invoiceSecondHalf,
-          invoiceFirstHalfNext,
+          invoiceSecondHalfNumber: (parsed.data.invoiceSecondHalfNumber ?? "").trim(),
+          invoiceFirstHalfNextNumber: (parsed.data.invoiceFirstHalfNextNumber ?? "").trim(),
+          invoiceSecondHalf: sums.byPart.SECOND_HALF.toFixed(2),
+          invoiceFirstHalfNext: sums.byPart.FIRST_HALF_NEXT.toFixed(2),
           status: "DRAFT",
           closedAt: null,
+          lines: {
+            createMany: {
+              data: linesToCreate,
+            },
+          },
         },
         select: { id: true },
       });
       invoiceId = created.id;
     } catch (err: any) {
+      // corrida de criação
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         const existing = await prisma.voucherMealInvoice.findUnique({
           where: { competence },
           select: { id: true, status: true },
         });
-
         if (!existing) {
           console.error("P2002 ocorreu mas não encontrei invoice pela competence.", err);
           return res.status(500).json({ message: "Falha ao criar/carregar mês." });
         }
 
-        if (existing.status === "DRAFT" && employees.length) {
-          await prisma.voucherMealAllocation.createMany({
-            data: employees.map((e) => ({ invoiceId: existing.id, ...defaultAllocationForEmployee(e) })),
-            skipDuplicates: true,
-          });
+        if (existing.status === "DRAFT") {
+          await ensureDefaultLines(existing.id);
+          if (employees.length) {
+            await prisma.voucherMealAllocation.createMany({
+              data: employees.map((e) => ({ invoiceId: existing.id, ...defaultAllocationForEmployee(e) })),
+              skipDuplicates: true,
+            });
+          }
         }
 
         return res.status(200).json({ invoiceId: existing.id, existed: true });
@@ -215,11 +359,14 @@ voucherMealRouter.get("/invoices/:id", async (req, res) => {
     const id = Number(req.params.id);
     if (!id) return res.status(400).json({ message: "id inválido" });
 
+    // garante linhas default (p/ invoices antigas)
+    await ensureDefaultLines(id);
+
     const invoice = await prisma.voucherMealInvoice.findUnique({
       where: { id },
       include: {
+        lines: true,
         allocations: {
-          // ✅ nunca listar filial 2 e nunca listar excluídos
           where: {
             employee: {
               voucherMealExcluded: false,
@@ -233,25 +380,59 @@ voucherMealRouter.get("/invoices/:id", async (req, res) => {
 
     if (!invoice) return res.status(404).json({ message: "Mês não encontrado" });
 
-    const invA = Number(invoice.invoiceSecondHalf);
-    const invB = Number(invoice.invoiceFirstHalfNext);
-    const invoiceTotal = invA + invB;
+    const lines = invoice.lines.map((l) => ({
+      id: l.id,
+      part: l.part as InvoicePart,
+      kind: l.kind as LineKind,
+      amount: Number(l.amount).toFixed(2),
+    }));
 
-    // ✅ totais calculados SOMENTE com o que aparece na lista
+    const sums = sumLines(
+      invoice.lines.map((l) => ({ part: l.part as any, kind: l.kind as any, amount: Number(l.amount) })) as any
+    );
+
+    // Atualiza totais gravados (para manter consistência com linhas)
+    const storedA = Number(invoice.invoiceSecondHalf);
+    const storedB = Number(invoice.invoiceFirstHalfNext);
+    const shouldA = round2(sums.byPart.SECOND_HALF);
+    const shouldB = round2(sums.byPart.FIRST_HALF_NEXT);
+    if (round2(storedA) !== shouldA || round2(storedB) !== shouldB) {
+      await prisma.voucherMealInvoice.update({
+        where: { id: invoice.id },
+        data: {
+          invoiceSecondHalf: shouldA.toFixed(2),
+          invoiceFirstHalfNext: shouldB.toFixed(2),
+        },
+      });
+    }
+
+    const invoiceTotal = sums.invoiceTotal;
+    const lunchTotal = sums.lunchTotal;
+    const coffeeTotal = sums.coffeeTotal;
+    const thirdPartyTotal = sums.thirdPartyTotal;
+
     const sumEmployee20 = invoice.allocations.reduce((acc, a) => acc + Number(a.employee20), 0);
     const sumCompany80 = invoice.allocations.reduce((acc, a) => acc + Number(a.company80), 0);
     const sumTotal100 = invoice.allocations.reduce((acc, a) => acc + Number(a.total100), 0);
-    const diff = invoiceTotal - sumTotal100;
+
+    const diffLunch = lunchTotal - sumTotal100;
+    const diffInvoice = invoiceTotal - (lunchTotal + coffeeTotal + thirdPartyTotal);
+
+    const employeesCount = invoice.allocations.length;
+    const coffeePerEmployee = employeesCount > 0 ? coffeeTotal / employeesCount : 0;
 
     return res.json({
       invoice: {
         id: invoice.id,
         competence: invoice.competence,
-        invoiceSecondHalf: Number(invoice.invoiceSecondHalf).toFixed(2),
-        invoiceFirstHalfNext: Number(invoice.invoiceFirstHalfNext).toFixed(2),
+        invoiceSecondHalfNumber: invoice.invoiceSecondHalfNumber,
+        invoiceFirstHalfNextNumber: invoice.invoiceFirstHalfNextNumber,
+        invoiceSecondHalf: shouldA.toFixed(2),
+        invoiceFirstHalfNext: shouldB.toFixed(2),
         status: invoice.status,
         closedAt: invoice.closedAt,
       },
+      lines,
       allocations: invoice.allocations
         .map((a) => ({
           id: a.id,
@@ -270,12 +451,35 @@ voucherMealRouter.get("/invoices/:id", async (req, res) => {
           },
         }))
         .sort((x, y) => x.employee.name.localeCompare(y.employee.name, "pt-BR")),
-      totals: {
-        invoiceTotal: invoiceTotal.toFixed(2),
-        sumTotal100: sumTotal100.toFixed(2),
-        sumCompany80: sumCompany80.toFixed(2),
-        sumEmployee20: sumEmployee20.toFixed(2),
-        diff: diff.toFixed(2),
+      summaries: {
+        notes: {
+          secondHalf: shouldA.toFixed(2),
+          firstHalfNext: shouldB.toFixed(2),
+          total: invoiceTotal.toFixed(2),
+        },
+        lunch: {
+          total: lunchTotal.toFixed(2),
+          diffWithAllocations: diffLunch.toFixed(2),
+        },
+        coffee: {
+          total: coffeeTotal.toFixed(2),
+          perEmployee: coffeePerEmployee.toFixed(2),
+          employeesCount,
+        },
+        thirdParty: {
+          total: thirdPartyTotal.toFixed(2),
+          visitors: sums.thirdParty.visitors.toFixed(2),
+          thirdParty: sums.thirdParty.thirdParty.toFixed(2),
+          donation: sums.thirdParty.donation.toFixed(2),
+        },
+        check: {
+          diffInvoice: diffInvoice.toFixed(2),
+        },
+        allocations: {
+          sumEmployee20: sumEmployee20.toFixed(2),
+          sumCompany80: sumCompany80.toFixed(2),
+          sumTotal100: sumTotal100.toFixed(2),
+        },
       },
     });
   } catch (err) {
@@ -291,8 +495,9 @@ voucherMealRouter.patch("/invoices/:id", async (req, res) => {
     if (!id) return res.status(400).json({ message: "id inválido" });
 
     const schema = z.object({
-      invoiceSecondHalf: z.union([z.string().min(1), z.number()]).optional(),
-      invoiceFirstHalfNext: z.union([z.string().min(1), z.number()]).optional(),
+      invoiceSecondHalfNumber: z.string().optional(),
+      invoiceFirstHalfNextNumber: z.string().optional(),
+      lines: z.array(LineInputSchema).optional(),
     });
 
     const parsed = schema.safeParse(req.body);
@@ -304,13 +509,38 @@ voucherMealRouter.patch("/invoices/:id", async (req, res) => {
     if (!invoice) return res.status(404).json({ message: "Mês não encontrado" });
     if (invoice.status === "CLOSED") return res.status(400).json({ message: "Mês já está fechado." });
 
+    if (parsed.data.lines && parsed.data.lines.length) {
+      // atualiza linha a linha (é pouca coisa: 18 linhas)
+      for (const l of parsed.data.lines) {
+        await prisma.voucherMealInvoiceLine.upsert({
+          where: { invoiceId_part_kind: { invoiceId: id, part: l.part, kind: l.kind } },
+          update: { amount: asMoneyString(l.amount) },
+          create: { invoiceId: id, part: l.part, kind: l.kind, amount: asMoneyString(l.amount) },
+        });
+      }
+    } else {
+      await ensureDefaultLines(id);
+    }
+
+    // recalcula totais com base nas linhas
+    const currentLines = await prisma.voucherMealInvoiceLine.findMany({ where: { invoiceId: id } });
+    const sums = sumLines(
+      currentLines.map((l) => ({ part: l.part as any, kind: l.kind as any, amount: Number(l.amount) })) as any
+    );
+
     await prisma.voucherMealInvoice.update({
       where: { id },
       data: {
-        invoiceSecondHalf:
-          parsed.data.invoiceSecondHalf !== undefined ? asMoneyString(parsed.data.invoiceSecondHalf) : undefined,
-        invoiceFirstHalfNext:
-          parsed.data.invoiceFirstHalfNext !== undefined ? asMoneyString(parsed.data.invoiceFirstHalfNext) : undefined,
+        invoiceSecondHalfNumber:
+          parsed.data.invoiceSecondHalfNumber !== undefined
+            ? parsed.data.invoiceSecondHalfNumber.trim()
+            : undefined,
+        invoiceFirstHalfNextNumber:
+          parsed.data.invoiceFirstHalfNextNumber !== undefined
+            ? parsed.data.invoiceFirstHalfNextNumber.trim()
+            : undefined,
+        invoiceSecondHalf: sums.byPart.SECOND_HALF.toFixed(2),
+        invoiceFirstHalfNext: sums.byPart.FIRST_HALF_NEXT.toFixed(2),
       },
     });
 
@@ -339,15 +569,6 @@ voucherMealRouter.patch("/invoices/:id/allocations/:employeeId", async (req, res
     const invoice = await prisma.voucherMealInvoice.findUnique({ where: { id: invoiceId }, select: { status: true } });
     if (!invoice) return res.status(404).json({ message: "Mês não encontrado" });
     if (invoice.status === "CLOSED") return res.status(400).json({ message: "Mês já está fechado." });
-
-    // ✅ trava: filial 2 nunca deve ser editada aqui / e excluídos também não
-    const employee = await prisma.employee.findUnique({
-      where: { id: employeeId },
-      select: { branch: true, voucherMealExcluded: true },
-    });
-    if (!employee) return res.status(404).json({ message: "Funcionário não encontrado" });
-    if (employee.branch === "2") return res.status(400).json({ message: "Filial 2 não é calculada nesta tela." });
-    if (employee.voucherMealExcluded) return res.status(400).json({ message: "Funcionário excluído do Vale Refeição." });
 
     const e20 = Number(
       typeof parsed.data.employee20 === "string" ? parsed.data.employee20.replace(",", ".") : parsed.data.employee20

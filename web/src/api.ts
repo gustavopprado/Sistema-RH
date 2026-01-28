@@ -61,10 +61,32 @@ export type VoucherMarketInvoiceDetails = {
 export type VoucherMealInvoice = {
   id: number;
   competence: string;
+  invoiceSecondHalfNumber: string;
+  invoiceFirstHalfNextNumber: string;
   invoiceSecondHalf: string;
   invoiceFirstHalfNext: string;
   status: VoucherInvoiceStatus;
   closedAt: string | null;
+};
+
+export type VoucherMealInvoicePart = "SECOND_HALF" | "FIRST_HALF_NEXT";
+export type VoucherMealLineKind =
+  | "MEAL_LUNCH"
+  | "MEAL_LUNCH_THIRD_PARTY"
+  | "MEAL_LUNCH_VISITORS"
+  | "MEAL_LUNCH_DONATION"
+  | "COFFEE_SANDWICH"
+  | "COFFEE_COFFEE_LITER"
+  | "COFFEE_COFFEE_MILK_LITER"
+  | "COFFEE_MILK_LITER"
+  | "SPECIAL_SERVICE";
+
+export type VoucherMealInvoiceLine = {
+  id: number;
+  invoiceId: number;
+  part: VoucherMealInvoicePart;
+  kind: VoucherMealLineKind;
+  amount: string;
 };
 
 export type VoucherMealAllocation = {
@@ -78,12 +100,22 @@ export type VoucherMealAllocation = {
 
 export type VoucherMealInvoiceDetails = {
   invoice: VoucherMealInvoice;
+  lines: VoucherMealInvoiceLine[];
   allocations: VoucherMealAllocation[];
   totals: {
+    employeesCount: number;
     invoiceTotal: string;
+    lunchTotalFromNotes: string;
+    coffeeTotal: string;
+    coffeePerEmployee: string;
+    thirdPartyTotal: string;
+    thirdPartyVisitors: string;
+    thirdPartyThirdParty: string;
+    thirdPartyDonation: string;
     sumTotal100: string;
     sumCompany80: string;
     sumEmployee20: string;
-    diff: string;
+    diffLunch: string;
+    diffInvoice: string;
   };
 };

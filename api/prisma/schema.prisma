@@ -12,6 +12,28 @@ enum VoucherInvoiceStatus {
   CLOSED
 }
 
+enum VoucherMealInvoicePart {
+  SECOND_HALF      // 2ª quinzena do mês (competência)
+  FIRST_HALF_NEXT  // 1ª quinzena do mês seguinte
+}
+
+enum VoucherMealLineKind {
+  // Almoço (colaboradores)
+  MEAL_LUNCH
+
+  // Terceiros / visitantes / doação (apenas relatório)
+  MEAL_LUNCH_THIRD_PARTY
+  MEAL_LUNCH_VISITORS
+  MEAL_LUNCH_DONATION
+
+  // Café / lanches (empresa) - rateio igual entre colaboradores
+  COFFEE_SANDWICH
+  COFFEE_COFFEE_LITER
+  COFFEE_COFFEE_MILK_LITER
+  COFFEE_MILK_LITER
+  SPECIAL_SERVICE
+}
+
 enum VoucherMarketAllocationStatus {
   DEFAULT       // 541 padrão
   FALTA         // 0
@@ -48,9 +70,14 @@ model VoucherMealInvoice {
   id                  Int                 @id @default(autoincrement())
   competence           DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
 
+  // Nº das notas (para registro)
+  invoiceSecondHalfNumber    String             @default("")
+  invoiceFirstHalfNextNumber String             @default("")
+
   // A empresa recebe DUAS notas para o mês:
   // - 2ª quinzena do mês (competência)
   // - 1ª quinzena do mês seguinte
+  // Totais (derivados da soma dos itens de cada nota)
   invoiceSecondHalf    Decimal             @db.Decimal(12, 2)
   invoiceFirstHalfNext Decimal             @db.Decimal(12, 2)
 
@@ -58,11 +85,29 @@ model VoucherMealInvoice {
   closedAt             DateTime?
 
   allocations          VoucherMealAllocation[]
+  lines                VoucherMealInvoiceLine[]
 
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
   @@unique([competence])
+}
+
+model VoucherMealInvoiceLine {
+  id        Int               @id @default(autoincrement())
+  invoiceId Int
+
+  part      VoucherMealInvoicePart
+  kind      VoucherMealLineKind
+  amount    Decimal           @db.Decimal(12, 2)
+
+  invoice   VoucherMealInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([invoiceId, part, kind])
+  @@index([invoiceId, kind])
 }
 
 model VoucherMealAllocation {
