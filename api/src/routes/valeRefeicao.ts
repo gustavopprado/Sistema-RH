@@ -49,7 +49,7 @@ valeRefeicaoRouter.get("/:month", async (req, res) => {
     const competence = parseMonthToDate(month);
 
     const invoice = await prisma.voucherMealInvoice.findUnique({
-      where: { competence },
+      where: { competence_branch: { competence, branch: "1" } },
       include: {
         allocations: {
           select: { employeeId: true, employee20: true, company80: true, total100: true },
@@ -116,9 +116,10 @@ valeRefeicaoRouter.put("/:month/invoices", async (req, res) => {
     });
 
     const invoice = await prisma.voucherMealInvoice.upsert({
-      where: { competence },
+      where: { competence_branch: { competence, branch: "1" } },
       create: {
         competence,
+        branch: "1",
         invoiceSecondHalf: inv2,
         invoiceFirstHalfNext: inv1,
         status: "DRAFT",
@@ -168,9 +169,10 @@ valeRefeicaoRouter.put("/:month/allocations", async (req, res) => {
 
     // garante invoice
     const invoice = await prisma.voucherMealInvoice.upsert({
-      where: { competence },
+      where: { competence_branch: { competence, branch: "1" } },
       create: {
         competence,
+        branch: "1",
         invoiceSecondHalf: new Prisma.Decimal(0),
         invoiceFirstHalfNext: new Prisma.Decimal(0),
         status: "DRAFT",

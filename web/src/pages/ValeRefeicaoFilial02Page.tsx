@@ -26,28 +26,30 @@ function monthNow(): string {
   return `${yyyy}-${mm}`;
 }
 
+const BRANCH = "2";
+
+function lastDayOfMonth(month: string): string {
+  // month: YYYY-MM
+  const [y, m] = month.split("-").map((x) => Number(x));
+  const d = new Date(y, m, 0); // último dia do mês
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function clamp2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
 type LineMap = Record<VoucherMealLineKind, Record<VoucherMealInvoicePart, string>>;
 
-const ALL_KINDS: VoucherMealLineKind[] = [
-  "MEAL_LUNCH",
-  "COFFEE_SANDWICH",
-  "COFFEE_COFFEE_LITER",
-  "COFFEE_COFFEE_MILK_LITER",
-  "COFFEE_MILK_LITER",
-  "SPECIAL_SERVICE",
-  "MEAL_LUNCH_VISITORS",
-  "MEAL_LUNCH_THIRD_PARTY",
-  "MEAL_LUNCH_DONATION",
-];
+const ALL_KINDS: VoucherMealLineKind[] = ["MEAL_LUNCH", "COFFEE_GENERAL", "MISC_SODA", "MISC_MEAL_EVENT"];
 
 const PARTS: VoucherMealInvoicePart[] = ["SECOND_HALF", "FIRST_HALF_NEXT"];
 
 const LABEL: Record<VoucherMealLineKind, string> = {
-  MEAL_LUNCH: "Refeição almoço (colaboradores)",
+  MEAL_LUNCH: "Refeição (colaboradores)",
   COFFEE_SANDWICH: "Sanduíche",
   COFFEE_COFFEE_LITER: "Café litro",
   COFFEE_COFFEE_MILK_LITER: "Café com leite litro",
@@ -57,8 +59,8 @@ const LABEL: Record<VoucherMealLineKind, string> = {
   MEAL_LUNCH_THIRD_PARTY: "Refeição almoço terceiros",
   MEAL_LUNCH_DONATION: "Refeição almoço doação",
 
-  // Filial 02 (não usado aqui, mas necessário para o tipo)
-  COFFEE_GENERAL: "Café (geral)",
+  // Filial 02
+  COFFEE_GENERAL: "Café",
   MISC_SODA: "Diversos (refrigerante)",
   MISC_MEAL_EVENT: "Diversos (refeição evento)",
 };
@@ -70,28 +72,16 @@ const GROUPS: Array<{
   tone: "meal" | "coffee" | "third";
 }> = [
   {
-    title: "Almoço",
+    title: "Refeição",
     hint: "Esse valor (somado das duas notas) deve bater com a soma (100%) dos funcionários.",
     kinds: ["MEAL_LUNCH"],
     tone: "meal",
   },
   {
-    title: "Café",
-    hint: "Esses valores (somados das duas notas) serão rateados igualmente entre os colaboradores listados (custo 100% empresa).",
-    kinds: [
-      "COFFEE_SANDWICH",
-      "COFFEE_COFFEE_LITER",
-      "COFFEE_COFFEE_MILK_LITER",
-      "COFFEE_MILK_LITER",
-      "SPECIAL_SERVICE",
-    ],
+    title: "Extras",
+    hint: "Café + diversos (refrigerante/refeição evento). Esses valores são custos da empresa (não entram no cálculo dos 20% do funcionário).",
+    kinds: ["COFFEE_GENERAL", "MISC_SODA", "MISC_MEAL_EVENT"],
     tone: "coffee",
-  },
-  {
-    title: "Terceiros",
-    hint: "Apenas para relatório/organização (não entra no rateio dos colaboradores).",
-    kinds: ["MEAL_LUNCH_VISITORS", "MEAL_LUNCH_THIRD_PARTY", "MEAL_LUNCH_DONATION"],
-    tone: "third",
   },
 ];
 
@@ -109,7 +99,7 @@ function toneStyle(tone: "meal" | "coffee" | "third") {
   return { borderColor: "#f3d4b2", background: "#fff8f0" };
 }
 
-export default function ValeRefeicaoPage() {
+export default function ValeRefeicaoFilial02Page() {
   const [month, setMonth] = useState<string>(() => monthNow());
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
@@ -126,6 +116,12 @@ export default function ValeRefeicaoPage() {
 
   // ✅ PASSO 3: filtro por centro de custo
   const [costCenterFilter, setCostCenterFilter] = useState<string>("ALL");
+
+  // Filial 02: incluir temporários no mês (cria Employee com admissão/demissão dentro do mês)
+  const [showTempDialog, setShowTempDialog] = useState(false);
+  const [tempName, setTempName] = useState("");
+  const [tempMatricula, setTempMatricula] = useState("");
+  const [tempCostCenter, setTempCostCenter] = useState("");
 
   // debounce por funcionário
   const timers = useRef<Record<number, any>>({});
@@ -167,13 +163,7 @@ export default function ValeRefeicaoPage() {
         lunchFirstHalf += b;
       }
 
-      if (
-        kind === "COFFEE_SANDWICH" ||
-        kind === "COFFEE_COFFEE_LITER" ||
-        kind === "COFFEE_COFFEE_MILK_LITER" ||
-        kind === "COFFEE_MILK_LITER" ||
-        kind === "SPECIAL_SERVICE"
-      ) {
+      if (kind === "COFFEE_GENERAL" || kind === "MISC_SODA" || kind === "MISC_MEAL_EVENT") {
         coffeeSecondHalf += a;
         coffeeFirstHalf += b;
       }
@@ -355,7 +345,7 @@ export default function ValeRefeicaoPage() {
     setSaving(true);
     try {
       const { data } = await api.get<{ invoice: VoucherMealInvoice | null }>("/voucher-meal/invoices/by-month", {
-        params: { month },
+        params: { month, branch: BRANCH },
       });
 
       if (!data.invoice) {
@@ -390,6 +380,7 @@ export default function ValeRefeicaoPage() {
     try {
       const { data } = await api.post<{ invoiceId: number; existed: boolean }>("/voucher-meal/invoices", {
         month,
+        branch: BRANCH,
         invoiceSecondHalfNumber: invoiceSecondHalfNumber.trim(),
         invoiceFirstHalfNextNumber: invoiceFirstHalfNextNumber.trim(),
         lines: buildLinesPayload(),
@@ -419,6 +410,45 @@ export default function ValeRefeicaoPage() {
       await loadInvoiceDetails(invoice.id);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Erro ao salvar valores.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addTemporaryEmployee() {
+    setError("");
+    const name = tempName.trim();
+    const matricula = tempMatricula.trim();
+    const costCenter = tempCostCenter.trim();
+
+    if (!name) return setError("Informe o nome do funcionário temporário.");
+    if (!matricula) return setError("Informe a matrícula do funcionário temporário.");
+    if (!costCenter) return setError("Informe o centro de custo.");
+
+    setSaving(true);
+    try {
+      await api.post("/employees", {
+        name,
+        matricula,
+        costCenter,
+        branch: BRANCH,
+        admissionDate: `${month}-01`,
+        terminationDate: lastDayOfMonth(month),
+      });
+
+      // Recarrega/garante alocações para incluir o novo funcionário nesse mês
+      const { data } = await api.post<{ invoiceId: number }>("/voucher-meal/invoices", {
+        month,
+        branch: BRANCH,
+      });
+
+      await loadInvoiceDetails(data.invoiceId);
+      setShowTempDialog(false);
+      setTempName("");
+      setTempMatricula("");
+      setTempCostCenter("");
+    } catch (e: any) {
+      setError(e?.response?.data?.message || "Erro ao adicionar temporário.");
     } finally {
       setSaving(false);
     }
@@ -486,8 +516,7 @@ export default function ValeRefeicaoPage() {
             <div>
               <b>Digite os valores das duas notas</b>
               <div style={{ fontSize: 12, color: "#555" }}>
-                Preencha as categorias de custo (Almoço / Café / Terceiros). O sistema soma e usa o total de <b>Almoço</b>{" "}
-                no passo 2.
+                Preencha as categorias de custo (Refeição / Extras). O sistema soma e usa o total de <b>Refeição</b> no passo 2.
               </div>
             </div>
 
@@ -547,16 +576,12 @@ export default function ValeRefeicaoPage() {
 
             <div className="card" style={{ padding: 12, minWidth: 320 }}>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                <span>Total Almoço</span>
+                <span>Total Refeição</span>
                 <b>{moneyBRL(computed.lunchTotal)}</b>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}>
-                <span>Total Café</span>
+                <span>Total Extras</span>
                 <b>{moneyBRL(computed.coffeeTotal)}</b>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}>
-                <span>Total Terceiros</span>
-                <b>{moneyBRL(computed.thirdPartyTotal)}</b>
               </div>
             </div>
           </div>
@@ -657,21 +682,26 @@ export default function ValeRefeicaoPage() {
                 <div>
                   <b>Funcionários do mês</b> <span style={{ fontSize: 12, color: "#555" }}>({rows.length})</span>
                   <div style={{ fontSize: 12, color: "#555" }}>
-                    Ajuste o desconto (20%). O sistema calcula 80% e 100%. Deve bater com o total de <b>Almoço</b> das
-                    notas.
+                    Ajuste o desconto (20%). O sistema calcula 80% e 100%. Deve bater com o total de <b>Refeição</b> das notas.
                   </div>
                 </div>
 
-                <label style={{ display: "flex", alignItems: "center", gap: 8, userSelect: "none" }}>
-                  <input type="checkbox" checked={onlyFilled} onChange={(e) => setOnlyFilled(e.target.checked)} />
-                  Mostrar apenas lançados
-                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <button className="primary" onClick={() => setShowTempDialog(true)} disabled={Boolean(isClosed) || saving}>
+                    + Adicionar temporário
+                  </button>
+
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, userSelect: "none" }}>
+                    <input type="checkbox" checked={onlyFilled} onChange={(e) => setOnlyFilled(e.target.checked)} />
+                    Mostrar apenas lançados
+                  </label>
+                </div>
               </div>
 
               <div style={{ marginBottom: 12, display: "flex", gap: 16, flexWrap: "wrap", alignItems: "center" }}>
                 <div className="card" style={{ padding: 12, minWidth: 320, borderColor: "#cfe7c3" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span>Total Almoço (notas)</span>
+                    <span>Total Refeição (notas)</span>
                     <b>{moneyBRL(computed.lunchTotal)}</b>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}>
@@ -679,15 +709,15 @@ export default function ValeRefeicaoPage() {
                     <b>{moneyBRL(allocTotals.sumTotal100)}</b>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}>
-                    <span>Diferença (Almoço - Funcionários)</span>
+                    <span>Diferença (Refeição - Funcionários)</span>
                     <b className={Math.abs(allocTotals.diffLunch) < 0.01 ? "ok" : "warn"}>{moneyBRL(allocTotals.diffLunch)}</b>
                   </div>
                   <div style={{ marginTop: 8, fontSize: 12, color: "#555" }}>
                     {Math.abs(allocTotals.diffLunch) < 0.01
-                      ? "✅ Fechamento OK: soma (100%) bate com o total de Almoço."
+                      ? "✅ Fechamento OK: soma (100%) bate com o total de Refeição."
                       : allocTotals.diffLunch > 0
-                      ? "Falta lançar valores de Almoço para bater com o total."
-                      : "Você lançou acima do total de Almoço. Ajuste os valores."}
+                      ? "Falta lançar valores de Refeição para bater com o total."
+                      : "Você lançou acima do total de Refeição. Ajuste os valores."}
                   </div>
                 </div>
 
@@ -815,7 +845,7 @@ export default function ValeRefeicaoPage() {
               <div style={{ marginTop: 12, display: "flex", gap: 12, flexWrap: "wrap" }}>
                 <div className="card" style={{ padding: 12, minWidth: 260, ...toneStyle("meal") }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span>Total Almoço (notas)</span>
+                    <span>Total Refeição (notas)</span>
                     <b>{moneyBRL(computed.lunchTotal)}</b>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}>
@@ -830,24 +860,12 @@ export default function ValeRefeicaoPage() {
 
                 <div className="card" style={{ padding: 12, minWidth: 260, ...toneStyle("coffee") }}>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span>Total Café (notas)</span>
+                    <span>Total Extras (notas)</span>
                     <b>{moneyBRL(computed.coffeeTotal)}</b>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}>
                     <span>Por colaborador</span>
                     <b>{moneyBRL(coffeePerEmployeeFiltered)}</b>
-                  </div>
-                </div>
-
-                <div className="card" style={{ padding: 12, minWidth: 260, ...toneStyle("third") }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                    <span>Total Terceiros</span>
-                    <b>{moneyBRL(computed.thirdPartyTotal)}</b>
-                  </div>
-                  <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
-                    Visitantes: <b>{moneyBRL(computed.thirdPartyByKind.VISITORS)}</b> • Terceiros:{" "}
-                    <b>{moneyBRL(computed.thirdPartyByKind.THIRD_PARTY)}</b> • Doação:{" "}
-                    <b>{moneyBRL(computed.thirdPartyByKind.DONATION)}</b>
                   </div>
                 </div>
 
@@ -857,7 +875,7 @@ export default function ValeRefeicaoPage() {
                     <b>{moneyBRL(computed.notes.total)}</b>
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginTop: 6 }}>
-                    <span>Total empresa (80% almoço + café)</span>
+                    <span>Total empresa (80% refeição + extras)</span>
                     <b>{moneyBRL(companyTotalWithCoffeeFiltered)}</b>
                   </div>
                 </div>
@@ -870,11 +888,11 @@ export default function ValeRefeicaoPage() {
                       <th className="col-name">Nome do colaborador</th>
                       <th className="col-matricula">Matrícula</th>
                       <th className="col-centro">Centro</th>
-                      <th className="money">20% Almoço</th>
-                      <th className="money">80% Almoço (Empresa)</th>
-                      <th className="money">100% Almoço</th>
-                      <th className="money">Café (Empresa)</th>
-                      <th className="money">Empresa total (80% + café)</th>
+                      <th className="money">20% Refeição</th>
+                      <th className="money">80% Refeição (Empresa)</th>
+                      <th className="money">100% Refeição</th>
+                      <th className="money">Extras (Empresa)</th>
+                      <th className="money">Empresa total (80% + extras)</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -912,6 +930,67 @@ export default function ValeRefeicaoPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Dialog: adicionar temporário */}
+      {showTempDialog && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 999,
+          }}
+          onClick={() => setShowTempDialog(false)}
+        >
+          <div
+            className="card"
+            style={{ width: "min(560px, 100%)", padding: 16 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <b>Adicionar funcionário temporário (somente {month})</b>
+              <button onClick={() => setShowTempDialog(false)} disabled={saving}>
+                Fechar
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#555", marginTop: 6 }}>
+              O temporário será criado na filial 02 com admissão em <b>{month}-01</b> e demissão em <b>{lastDayOfMonth(month)}</b>,
+              então não aparecerá no mês seguinte.
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div className="field" style={{ gridColumn: "span 2" }}>
+                <label>Nome</label>
+                <input value={tempName} onChange={(e) => setTempName(e.target.value)} disabled={saving} placeholder="Ex: João Silva" />
+              </div>
+              <div className="field">
+                <label>Matrícula</label>
+                <input value={tempMatricula} onChange={(e) => setTempMatricula(e.target.value)} disabled={saving} placeholder="Ex: 99999" />
+              </div>
+              <div className="field">
+                <label>Centro de custo</label>
+                <input value={tempCostCenter} onChange={(e) => setTempCostCenter(e.target.value)} disabled={saving} placeholder="Ex: 123" />
+              </div>
+            </div>
+
+            {error && <div className="error" style={{ marginTop: 12 }}>{error}</div>}
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button onClick={() => setShowTempDialog(false)} disabled={saving}>
+                Cancelar
+              </button>
+              <button className="primary" onClick={addTemporaryEmployee} disabled={saving || Boolean(isClosed)}>
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -75,6 +75,11 @@ const LINE_KINDS = [
   "COFFEE_COFFEE_MILK_LITER",
   "COFFEE_MILK_LITER",
   "SPECIAL_SERVICE",
+
+  // Filial 02 (itens gerais)
+  "COFFEE_GENERAL",
+  "MISC_SODA",
+  "MISC_MEAL_EVENT",
 ] as const;
 
 const PARTS = ["SECOND_HALF", "FIRST_HALF_NEXT"] as const;
@@ -94,7 +99,10 @@ function isCoffeeKind(kind: LineKind) {
     kind === "COFFEE_COFFEE_LITER" ||
     kind === "COFFEE_COFFEE_MILK_LITER" ||
     kind === "COFFEE_MILK_LITER" ||
-    kind === "SPECIAL_SERVICE"
+    kind === "SPECIAL_SERVICE" ||
+    kind === "COFFEE_GENERAL" ||
+    kind === "MISC_SODA" ||
+    kind === "MISC_MEAL_EVENT"
   );
 }
 
@@ -161,31 +169,33 @@ function sumLines(lines: Array<{ part: InvoicePart; kind: LineKind; amount: any 
 /**
  * Filtro de colaboradores para o Vale Refeição:
  * - não excluídos (voucherMealExcluded=false)
- * - NÃO incluir filial 2 (branch != "2")
+ * - filial informada (branch)
  * - trabalharam no período (admissão <= fim do mês; demissão null ou >= início)
  */
-function employeesWhereForMonth(start: Date, end: Date) {
+function employeesWhereForMonth(start: Date, end: Date, branch: string) {
   return {
     voucherMealExcluded: false,
-    branch: { not: "2" },
+    branch,
     admissionDate: { lte: end },
     OR: [{ terminationDate: null }, { terminationDate: { gte: start } }],
   } as const;
 }
 
-// GET /voucher-meal/invoices/by-month?month=YYYY-MM
+// GET /voucher-meal/invoices/by-month?month=YYYY-MM&branch=1|2
 voucherMealRouter.get("/invoices/by-month", async (req, res) => {
   try {
     const month = String(req.query.month ?? "").trim();
+    const branch = String(req.query.branch ?? "1").trim() || "1";
     if (!month) return res.status(400).json({ message: "month é obrigatório (YYYY-MM)" });
 
     const competence = parseMonthToDate(month);
 
     const invoice = await prisma.voucherMealInvoice.findUnique({
-      where: { competence },
+      where: { competence_branch: { competence, branch } },
       select: {
         id: true,
         competence: true,
+        branch: true,
         invoiceSecondHalfNumber: true,
         invoiceFirstHalfNextNumber: true,
         invoiceSecondHalf: true,
@@ -200,6 +210,7 @@ voucherMealRouter.get("/invoices/by-month", async (req, res) => {
         ? {
             id: invoice.id,
             competence: invoice.competence,
+            branch: invoice.branch,
             invoiceSecondHalfNumber: invoice.invoiceSecondHalfNumber,
             invoiceFirstHalfNextNumber: invoice.invoiceFirstHalfNextNumber,
             invoiceSecondHalf: Number(invoice.invoiceSecondHalf).toFixed(2),
@@ -221,6 +232,7 @@ voucherMealRouter.post("/invoices", async (req, res) => {
   try {
     const schema = z.object({
       month: z.string().min(1),
+      branch: z.string().optional(),
       invoiceSecondHalfNumber: z.string().optional(),
       invoiceFirstHalfNextNumber: z.string().optional(),
       lines: z.array(LineInputSchema).optional(),
@@ -232,16 +244,17 @@ voucherMealRouter.post("/invoices", async (req, res) => {
     }
 
     const competence = parseMonthToDate(parsed.data.month);
+    const branch = (parsed.data.branch ?? "1").trim() || "1";
     const { start, end } = monthRange(competence);
 
     // funcionários que trabalharam no mês (com filtro de exclusão e filial)
     const employees = await prisma.employee.findMany({
-      where: employeesWhereForMonth(start, end),
+      where: employeesWhereForMonth(start, end, branch),
       select: { id: true },
     });
 
     const already = await prisma.voucherMealInvoice.findUnique({
-      where: { competence },
+      where: { competence_branch: { competence, branch } },
       select: { id: true, status: true },
     });
 
@@ -286,6 +299,7 @@ voucherMealRouter.post("/invoices", async (req, res) => {
       const created = await prisma.voucherMealInvoice.create({
         data: {
           competence,
+          branch,
           invoiceSecondHalfNumber: (parsed.data.invoiceSecondHalfNumber ?? "").trim(),
           invoiceFirstHalfNextNumber: (parsed.data.invoiceFirstHalfNextNumber ?? "").trim(),
           invoiceSecondHalf: sums.byPart.SECOND_HALF.toFixed(2),
@@ -305,7 +319,7 @@ voucherMealRouter.post("/invoices", async (req, res) => {
       // corrida de criação
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
         const existing = await prisma.voucherMealInvoice.findUnique({
-          where: { competence },
+          where: { competence_branch: { competence, branch } },
           select: { id: true, status: true },
         });
         if (!existing) {
@@ -370,7 +384,6 @@ voucherMealRouter.get("/invoices/:id", async (req, res) => {
           where: {
             employee: {
               voucherMealExcluded: false,
-              branch: { not: "2" },
             },
           },
           include: { employee: true },

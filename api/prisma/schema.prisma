@@ -32,6 +32,11 @@ enum VoucherMealLineKind {
   COFFEE_COFFEE_MILK_LITER
   COFFEE_MILK_LITER
   SPECIAL_SERVICE
+
+  // Filial 02 (itens gerais)
+  COFFEE_GENERAL
+  MISC_SODA
+  MISC_MEAL_EVENT
 }
 
 enum VoucherMarketAllocationStatus {
@@ -70,6 +75,10 @@ model VoucherMealInvoice {
   id                  Int                 @id @default(autoincrement())
   competence           DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
 
+  // Filial (ex: "1" ou "2").
+  // Mantém a compatibilidade: se não informado, assume "1".
+  branch              String              @default("1")
+
   // Nº das notas (para registro)
   invoiceSecondHalfNumber    String             @default("")
   invoiceFirstHalfNextNumber String             @default("")
@@ -90,7 +99,8 @@ model VoucherMealInvoice {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  @@unique([competence])
+  @@unique([competence, branch], name: "competence_branch")
+  @@index([branch])
 }
 
 model VoucherMealInvoiceLine {

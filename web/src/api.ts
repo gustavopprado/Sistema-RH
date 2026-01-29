@@ -61,6 +61,7 @@ export type VoucherMarketInvoiceDetails = {
 export type VoucherMealInvoice = {
   id: number;
   competence: string;
+  branch?: string;
   invoiceSecondHalfNumber: string;
   invoiceFirstHalfNextNumber: string;
   invoiceSecondHalf: string;
@@ -79,7 +80,10 @@ export type VoucherMealLineKind =
   | "COFFEE_COFFEE_LITER"
   | "COFFEE_COFFEE_MILK_LITER"
   | "COFFEE_MILK_LITER"
-  | "SPECIAL_SERVICE";
+  | "SPECIAL_SERVICE"
+  | "COFFEE_GENERAL"
+  | "MISC_SODA"
+  | "MISC_MEAL_EVENT";
 
 export type VoucherMealInvoiceLine = {
   id: number;
