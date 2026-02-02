@@ -123,3 +123,42 @@ export type VoucherMealInvoiceDetails = {
     diffInvoice: string;
   };
 };
+
+// --------------------
+// Types (Unimed)
+// --------------------
+export type UnimedUsageKind = "PERSONAL" | "WORK_ACCIDENT";
+
+export type UnimedInvoice = {
+  id: number;
+  competence: string;
+  invoiceNumber: string;
+  invoiceValue: string;
+  status: VoucherInvoiceStatus;
+  closedAt: string | null;
+};
+
+export type UnimedUsage = {
+  id: number;
+  invoiceId: number;
+  employeeId: number;
+  kind: UnimedUsageKind;
+  amountTotal: string;
+  amountEmployee: string;
+  amountCompany: string;
+  note?: string | null;
+  employee: Employee;
+};
+
+export type UnimedInvoiceDetails = {
+  invoice: UnimedInvoice;
+  employees: Employee[];
+  usages: UnimedUsage[];
+  totals: {
+    invoiceValue: string;
+    sumTotal100: string;
+    sumEmployee: string;
+    sumCompany: string;
+    diff: string;
+  };
+};

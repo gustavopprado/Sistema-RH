@@ -3,12 +3,14 @@ import EmployeesPage from "./pages/EmployeesPage";
 import ValeMercadoPage from "./pages/ValeMercadoPage";
 import ValeRefeicaoPage from "./pages/ValeRefeicaoPage";
 import ValeRefeicaoFilial02Page from "./pages/ValeRefeicaoFilial02Page";
+import UnimedPage from "./pages/UnimedPage";
 
-type Route = "employees" | "vale-mercado" | "vale-refeicao" | "vale-refeicao-filial-02";
+type Route = "employees" | "vale-mercado" | "vale-refeicao" | "vale-refeicao-filial-02" | "unimed";
 
 function getRouteFromHash(): Route {
   const h = (window.location.hash || "#/employees").replace("#", "");
   if (h.startsWith("/vale-mercado")) return "vale-mercado";
+  if (h.startsWith("/unimed")) return "unimed";
   if (h.startsWith("/vale-refeicao-filial-02")) return "vale-refeicao-filial-02";
   if (h.startsWith("/vale-refeicao")) return "vale-refeicao";
   return "employees";
@@ -25,6 +27,7 @@ export default function App() {
 
   const title = useMemo(() => {
     if (route === "vale-mercado") return "Vale Mercado";
+    if (route === "unimed") return "Unimed • Plano de Saúde";
     if (route === "vale-refeicao") return "Vale Refeição • Filial 01";
     if (route === "vale-refeicao-filial-02") return "Vale Refeição • Filial 02";
     return "Funcionários";
@@ -33,6 +36,7 @@ export default function App() {
   function go(to: Route) {
     if (to === "employees") window.location.hash = "#/employees";
     else if (to === "vale-mercado") window.location.hash = "#/vale-mercado";
+    else if (to === "unimed") window.location.hash = "#/unimed";
     else if (to === "vale-refeicao") window.location.hash = "#/vale-refeicao";
     else window.location.hash = "#/vale-refeicao-filial-02";
   }
@@ -55,6 +59,13 @@ export default function App() {
             onClick={() => go("vale-mercado")}
           >
             Vale Mercado
+          </button>
+
+          <button
+            className={"sidebtn" + (route === "unimed" ? " active" : "")}
+            onClick={() => go("unimed")}
+          >
+            Unimed (Plano de Saúde)
           </button>
 
           <button
@@ -83,6 +94,8 @@ export default function App() {
           <EmployeesPage />
         ) : route === "vale-mercado" ? (
           <ValeMercadoPage />
+        ) : route === "unimed" ? (
+          <UnimedPage />
         ) : route === "vale-refeicao-filial-02" ? (
           <ValeRefeicaoFilial02Page />
         ) : (

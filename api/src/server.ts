@@ -4,6 +4,7 @@ import cors from "cors";
 import { employeesRouter } from "./routes/employees";
 import { voucherMarketRouter } from "./routes/voucherMarket";
 import { voucherMealRouter } from "./routes/voucherMeal";
+import { unimedRouter } from "./routes/unimed";
 
 const app = express();
 
@@ -22,6 +23,9 @@ app.use("/voucher-market", voucherMarketRouter);
 
 // Vale Refeição
 app.use("/voucher-meal", voucherMealRouter);
+
+// Unimed (Plano de Saúde)
+app.use("/unimed", unimedRouter);
 
 
 const port = Number(process.env.PORT ?? 3333);
