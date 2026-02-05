@@ -33,6 +33,26 @@ body { margin: 0; background: #f6f7f9; color: #111; }
   background: #fff;
 }
 
+/* Sidebar: grupo colapsável (Convênios médicos) */
+.sidegroup { display: flex; flex-direction: column; gap: 8px; }
+
+.sidebtn.group {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 700;
+}
+
+.sidebtn.group .chev { opacity: .75; }
+
+.sidebtn.group.group-open {
+  border-color: #7bc258;
+}
+
+.sidegroup-items { display: flex; flex-direction: column; gap: 8px; }
+
+.sidebtn.sub { padding-left: 18px; }
+
 .sidebtn.active {
   background: #7bc258;
   border-color: #7bc258;
@@ -63,12 +83,16 @@ body { margin: 0; background: #f6f7f9; color: #111; }
 .field { display: flex; flex-direction: column; gap: 6px; }
 
 /* Inputs padrão (fora da tabela) */
-input, select {
+input, select, textarea {
   padding: 10px 12px;
   border-radius: 10px;
   border: 1px solid #d8dbe3;
   background: white;
+  font-family: inherit;
+  font-size: 14px;
 }
+
+textarea { resize: vertical; }
 
 /* ✅ Se você precisa desse "min-width" para os campos do topo, aplique só lá */
 .row .field input,

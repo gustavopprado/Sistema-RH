@@ -162,3 +162,47 @@ export type UnimedInvoiceDetails = {
     diff: string;
   };
 };
+
+
+// --------------------
+// Types (Convênios médicos)
+// --------------------
+export type MedicalConvenioProviderSlug =
+  | "laboratorio-santa-cruz"
+  | "centro-diagnostico-capao-raso"
+  | "policlinica-capao-raso"
+  | "policlinica-mansur";
+
+export type MedicalConvenioInvoice = {
+  id: number;
+  competence: string;
+  invoiceNumber: string;
+  invoiceValue: string;
+  status: VoucherInvoiceStatus;
+  closedAt: string | null;
+};
+
+export type MedicalConvenioUsage = {
+  id: number;
+  invoiceId: number;
+  employeeId: number;
+  kind: UnimedUsageKind;
+  amountTotal: string;
+  amountEmployee: string;
+  amountCompany: string;
+  note?: string | null;
+  employee: Employee;
+};
+
+export type MedicalConvenioInvoiceDetails = {
+  invoice: MedicalConvenioInvoice;
+  employees: Employee[];
+  usages: MedicalConvenioUsage[];
+  totals: {
+    invoiceValue: string;
+    sumTotal100: string;
+    sumEmployee: string;
+    sumCompany: string;
+    diff: string;
+  };
+};

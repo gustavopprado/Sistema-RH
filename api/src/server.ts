@@ -5,6 +5,7 @@ import { employeesRouter } from "./routes/employees";
 import { voucherMarketRouter } from "./routes/voucherMarket";
 import { voucherMealRouter } from "./routes/voucherMeal";
 import { unimedRouter } from "./routes/unimed";
+import { medicalConveniosRouter } from "./routes/medicalConvenios";
 
 const app = express();
 
@@ -26,6 +27,11 @@ app.use("/voucher-meal", voucherMealRouter);
 
 // Unimed (Plano de Saúde)
 app.use("/unimed", unimedRouter);
+
+
+// Convênios médicos (Laboratório/Clínicas)
+app.use("/medical-convenios", medicalConveniosRouter);
+
 
 
 const port = Number(process.env.PORT ?? 3333);

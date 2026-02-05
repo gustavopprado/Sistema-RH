@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { api, Employee, UnimedInvoice, UnimedInvoiceDetails, UnimedUsageKind } from "../api";
+import { api, Employee, MedicalConvenioInvoice, MedicalConvenioInvoiceDetails, MedicalConvenioProviderSlug, UnimedUsageKind } from "../api";
 
 function monthNow(): string {
   const d = new Date();
@@ -212,11 +212,13 @@ const EmployeeCard = React.memo(function EmployeeCard(props: EmployeeCardProps) 
   );
 });
 
-export default function UnimedPage() {
+export default function MedicalConvenioTemplate(props: { provider: MedicalConvenioProviderSlug; title: string }) {
+  const { provider, title } = props;
+
   const [month, setMonth] = useState<string>(() => monthNow());
   const [step, setStep] = useState<1 | 2>(1);
 
-  const [invoice, setInvoice] = useState<UnimedInvoice | null>(null);
+  const [invoice, setInvoice] = useState<MedicalConvenioInvoice | null>(null);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [invoiceValue, setInvoiceValue] = useState<string>("");
 
@@ -303,7 +305,7 @@ export default function UnimedPage() {
   }, [invoiceValue, employees, linesByEmp]);
 
   async function loadInvoiceDetails(id: number) {
-    const { data } = await api.get<UnimedInvoiceDetails>(`/unimed/invoices/${id}`);
+    const { data } = await api.get<MedicalConvenioInvoiceDetails>(`/medical-convenios/${provider}/invoices/${id}`);
     setInvoice(data.invoice);
     setInvoiceNumber(data.invoice.invoiceNumber);
     setInvoiceValue(String(data.invoice.invoiceValue));
@@ -326,7 +328,7 @@ export default function UnimedPage() {
     setError("");
     setSaving(true);
     try {
-      const { data } = await api.get<{ invoice: UnimedInvoice | null }>("/unimed/invoices/by-month", {
+      const { data } = await api.get<{ invoice: MedicalConvenioInvoice | null }>(`/medical-convenios/${provider}/invoices/by-month`, {
         params: { month },
       });
 
@@ -361,7 +363,7 @@ export default function UnimedPage() {
 
     setSaving(true);
     try {
-      const { data } = await api.post<{ invoiceId: number; existed: boolean }>("/unimed/invoices", {
+      const { data } = await api.post<{ invoiceId: number; existed: boolean }>(`/medical-convenios/${provider}/invoices`, {
         month,
         invoiceNumber,
         invoiceValue: inv,
@@ -386,7 +388,7 @@ export default function UnimedPage() {
     setSaving(true);
     setError("");
     try {
-      await api.patch(`/unimed/invoices/${invoice.id}`, { invoiceNumber, invoiceValue: inv });
+      await api.patch(`/medical-convenios/${provider}/invoices/${invoice.id}`, { invoiceNumber, invoiceValue: inv });
       await loadInvoiceDetails(invoice.id);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Erro ao salvar nota.");
@@ -400,7 +402,7 @@ export default function UnimedPage() {
     setError("");
     setSaving(true);
     try {
-      await api.post(`/unimed/invoices/${invoice.id}/reopen`);
+      await api.post(`/medical-convenios/${provider}/invoices/${invoice.id}/reopen`);
       await loadInvoiceDetails(invoice.id);
     } catch (e: any) {
       setError(e?.response?.data?.message || "Erro ao reabrir mês.");
@@ -417,7 +419,7 @@ export default function UnimedPage() {
       const lines = linesByEmpRef.current[employeeId] || [];
       const payload = lines.map((l) => ({ kind: l.kind, amountTotal: num(l.amountTotal), note: l.note || "" }));
       try {
-        await api.patch(`/unimed/invoices/${invoice.id}/usages/${employeeId}`, { usages: payload });
+        await api.patch(`/medical-convenios/${provider}/invoices/${invoice.id}/usages/${employeeId}`, { usages: payload });
       } catch (e: any) {
         setError(e?.response?.data?.message || "Erro ao salvar valores.");
       }
@@ -460,7 +462,7 @@ export default function UnimedPage() {
     setSaving(true);
     try {
       await saveInvoiceHeader();
-      await api.post(`/unimed/invoices/${invoice.id}/close`);
+      await api.post(`/medical-convenios/${provider}/invoices/${invoice.id}/close`);
       await loadInvoiceDetails(invoice.id);
       setStep(2);
     } catch (e: any) {
@@ -472,7 +474,7 @@ export default function UnimedPage() {
 
   return (
     <div className="container">
-      <h2>Unimed • Plano de Saúde</h2>
+      <h2>{title}</h2>
       <div className="muted" style={{ marginBottom: 12 }}>
         Lance os valores por funcionário (pessoal x acidente) e no final feche o mês garantindo que a soma bata com a nota fiscal.
       </div>
