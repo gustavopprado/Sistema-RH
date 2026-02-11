@@ -1,0 +1,11 @@
+{
+  "name": "rh-gestao-funcionarios",
+  "private": true,
+  "workspaces": [
+    "api",
+    "web"
+  ],
+  "dependencies": {
+    "recharts": "^3.6.0"
+  }
+}

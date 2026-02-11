@@ -1,0 +1,337 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum VoucherInvoiceStatus {
+  DRAFT
+  CLOSED
+}
+
+enum VoucherMealInvoicePart {
+  SECOND_HALF      // 2ª quinzena do mês (competência)
+  FIRST_HALF_NEXT  // 1ª quinzena do mês seguinte
+}
+
+enum VoucherMealLineKind {
+  // Almoço (colaboradores)
+  MEAL_LUNCH
+
+  // Terceiros / visitantes / doação (apenas relatório)
+  MEAL_LUNCH_THIRD_PARTY
+  MEAL_LUNCH_VISITORS
+  MEAL_LUNCH_DONATION
+
+  // Café / lanches (empresa) - rateio igual entre colaboradores
+  COFFEE_SANDWICH
+  COFFEE_COFFEE_LITER
+  COFFEE_COFFEE_MILK_LITER
+  COFFEE_MILK_LITER
+  SPECIAL_SERVICE
+
+  // Filial 02 (itens gerais)
+  COFFEE_GENERAL
+  MISC_SODA
+  MISC_MEAL_EVENT
+}
+
+enum VoucherMarketAllocationStatus {
+  DEFAULT       // 541 padrão
+  FALTA         // 0
+  PROPORCIONAL  // valor editável
+  EXCLUIDO      // 0 e não participa do vale mercado
+}
+
+enum UnimedUsageKind {
+  PERSONAL
+  WORK_ACCIDENT
+}
+
+enum MedicalConvenioProvider {
+  LABORATORIO_SANTA_CRUZ
+  CENTRO_DIAGNOSTICO_CAPAO_RASO
+  POLICLINICA_CAPAO_RASO
+  POLICLINICA_MANSUR
+}
+
+model Employee {
+  id              Int       @id @default(autoincrement())
+  name            String
+  matricula       String    @unique
+  costCenter      String
+  branch          String
+  admissionDate   DateTime  @db.Date
+  terminationDate DateTime? @db.Date
+
+  voucherMarketExcluded Boolean @default(false)
+  voucherMarketAllocations VoucherMarketAllocation[]
+
+  voucherMealAllocations   VoucherMealAllocation[]
+  voucherMealExcluded Boolean @default(false)
+
+  // Lançamentos do plano de saúde (Unimed) por competência
+  unimedUsages UnimedUsage[]
+
+  // Mensalidade (Unimed) por competência
+  unimedMonthlyAllocations UnimedMonthlyAllocation[]
+
+
+  // Lançamentos de convênios médicos (Laboratório/Clínicas)
+  medicalConvenioUsages MedicalConvenioUsage[]
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([branch])
+  @@index([costCenter])
+  @@index([terminationDate])
+  @@index([voucherMarketExcluded])
+  @@index([voucherMealExcluded])
+}
+
+model VoucherMealInvoice {
+  id                  Int                 @id @default(autoincrement())
+  competence           DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
+
+  // Filial (ex: "1" ou "2").
+  // Mantém a compatibilidade: se não informado, assume "1".
+  branch              String              @default("1")
+
+  // Nº das notas (para registro)
+  invoiceSecondHalfNumber    String             @default("")
+  invoiceFirstHalfNextNumber String             @default("")
+
+  // A empresa recebe DUAS notas para o mês:
+  // - 2ª quinzena do mês (competência)
+  // - 1ª quinzena do mês seguinte
+  // Totais (derivados da soma dos itens de cada nota)
+  invoiceSecondHalf    Decimal             @db.Decimal(12, 2)
+  invoiceFirstHalfNext Decimal             @db.Decimal(12, 2)
+
+  status               VoucherInvoiceStatus @default(DRAFT)
+  closedAt             DateTime?
+
+  allocations          VoucherMealAllocation[]
+  lines                VoucherMealInvoiceLine[]
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([competence, branch], name: "competence_branch")
+  @@index([branch])
+}
+
+model VoucherMealInvoiceLine {
+  id        Int               @id @default(autoincrement())
+  invoiceId Int
+
+  part      VoucherMealInvoicePart
+  kind      VoucherMealLineKind
+  amount    Decimal           @db.Decimal(12, 2)
+
+  invoice   VoucherMealInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([invoiceId, part, kind])
+  @@index([invoiceId, kind])
+}
+
+model VoucherMealAllocation {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int
+  employeeId Int
+
+  // Valor lançado (20%) = desconto do funcionário
+  employee20 Decimal  @db.Decimal(12, 2)
+  // 80% = empresa
+  company80  Decimal  @db.Decimal(12, 2)
+  // 100% = total
+  total100   Decimal  @db.Decimal(12, 2)
+
+  invoice    VoucherMealInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee   Employee           @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([invoiceId, employeeId])
+  @@index([employeeId])
+}
+
+model VoucherMarketInvoice {
+  id            Int                 @id @default(autoincrement())
+  competence    DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
+  invoiceNumber String
+  invoiceValue  Decimal             @db.Decimal(10, 2)
+
+  status        VoucherInvoiceStatus @default(DRAFT)
+  closedAt      DateTime?
+
+  allocations   VoucherMarketAllocation[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([competence])
+  @@index([invoiceNumber])
+}
+
+model VoucherMarketAllocation {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int
+  employeeId Int
+
+  amount     Decimal  @db.Decimal(10, 2)
+  status     VoucherMarketAllocationStatus @default(DEFAULT)
+  note       String?
+
+  invoice    VoucherMarketInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee   Employee             @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([invoiceId, employeeId])
+  @@index([employeeId])
+}
+
+model UnimedInvoice {
+  id            Int                 @id @default(autoincrement())
+  competence    DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
+  invoiceNumber String              @default("")
+  invoiceValue  Decimal             @db.Decimal(12, 2)
+
+  status        VoucherInvoiceStatus @default(DRAFT)
+  closedAt      DateTime?
+
+  usages        UnimedUsage[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([competence])
+  @@index([invoiceNumber])
+}
+
+// Mensalidade (recorrente) do plano de saúde (Unimed)
+model UnimedMonthlyInvoice {
+  id            Int                 @id @default(autoincrement())
+  competence    DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
+
+  // Cabeçalho da NF
+  invoiceNumber String              @default("")
+  invoiceValue  Decimal             @db.Decimal(12, 2)
+
+  // Valor unitário (por vida: titular + dependentes)
+  unitValue     Decimal             @db.Decimal(12, 2)
+
+  status        VoucherInvoiceStatus @default(DRAFT)
+  closedAt      DateTime?
+
+  allocations   UnimedMonthlyAllocation[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([competence])
+  @@index([invoiceNumber])
+}
+
+model UnimedMonthlyAllocation {
+  id         Int      @id @default(autoincrement())
+  invoiceId  Int
+  employeeId Int
+
+  // Quantidade de dependentes do colaborador
+  dependents Int      @default(0)
+
+  // Total do colaborador (titular + dependentes) = unitValue * (dependents + 1)
+  amountTotal Decimal @db.Decimal(12, 2)
+
+  invoice    UnimedMonthlyInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee   Employee            @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([invoiceId, employeeId])
+  @@index([employeeId])
+}
+
+model UnimedUsage {
+  id            Int            @id @default(autoincrement())
+  invoiceId     Int
+  employeeId    Int
+
+  kind          UnimedUsageKind
+
+  // 100% do procedimento
+  amountTotal   Decimal        @db.Decimal(12, 2)
+
+  // Valores já rateados (para auditoria e evitar divergência por arredondamento)
+  amountEmployee Decimal       @db.Decimal(12, 2)
+  amountCompany  Decimal       @db.Decimal(12, 2)
+
+  note          String?
+
+  invoice       UnimedInvoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([invoiceId, employeeId])
+  @@index([employeeId])
+}
+
+model MedicalConvenioInvoice {
+  id            Int                 @id @default(autoincrement())
+  provider      MedicalConvenioProvider
+  competence    DateTime            @db.Date // 1º dia do mês: YYYY-MM-01
+  invoiceNumber String              @default("")
+  invoiceValue  Decimal             @db.Decimal(12, 2)
+
+  status        VoucherInvoiceStatus @default(DRAFT)
+  closedAt      DateTime?
+
+  usages        MedicalConvenioUsage[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([provider, competence], name: "provider_competence")
+  @@index([provider])
+  @@index([invoiceNumber])
+}
+
+model MedicalConvenioUsage {
+  id             Int            @id @default(autoincrement())
+  invoiceId      Int
+  employeeId     Int
+
+  kind           UnimedUsageKind
+
+  // 100% do procedimento
+  amountTotal    Decimal        @db.Decimal(12, 2)
+
+  // Valores já rateados (para auditoria e evitar divergência por arredondamento)
+  amountEmployee Decimal        @db.Decimal(12, 2)
+  amountCompany  Decimal        @db.Decimal(12, 2)
+
+  note           String?
+
+  invoice        MedicalConvenioInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  employee       Employee              @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([invoiceId, employeeId])
+  @@index([employeeId])
+}
+
