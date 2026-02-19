@@ -5,6 +5,7 @@ import ValeRefeicaoPage from "./pages/ValeRefeicaoPage";
 import ValeRefeicaoFilial02Page from "./pages/ValeRefeicaoFilial02Page";
 import UnimedPage from "./pages/UnimedPage";
 import UnimedMensalidadePage from "./pages/UnimedMensalidadePage";
+import RelatorioSaudePage from "./pages/RelatorioSaudePage";
 import LaboratorioSantaCruzPage from "./pages/LaboratorioSantaCruzPage";
 import CentroDiagnosticoCapaoRasoPage from "./pages/CentroDiagnosticoCapaoRasoPage";
 import PoliclinicaCapaoRasoPage from "./pages/PoliclinicaCapaoRasoPage";
@@ -18,6 +19,7 @@ type Route =
   | "vale-refeicao-filial-02"
   | "unimed"
   | "unimed-mensalidade"
+  | "relatorio-saude"
   | "convenio-laboratorio-santa-cruz"
   | "convenio-centro-diagnostico-capao-raso"
   | "convenio-policlinica-capao-raso"
@@ -35,6 +37,7 @@ function isConvenioRoute(r: Route) {
 function getRouteFromHash(): Route {
   const h = (window.location.hash || "#/employees").replace("#", "");
   if (h.startsWith("/vale-mercado")) return "vale-mercado";
+  if (h.startsWith("/relatorio-saude")) return "relatorio-saude";
   if (h.startsWith("/unimed-mensalidade")) return "unimed-mensalidade";
   if (h.startsWith("/unimed")) return "unimed";
   if (h.startsWith("/convenio-laboratorio-santa-cruz")) return "convenio-laboratorio-santa-cruz";
@@ -65,6 +68,7 @@ export default function App() {
     if (route === "vale-mercado") return "Vale Mercado";
     if (route === "unimed") return "Unimed • Plano de Saúde";
     if (route === "unimed-mensalidade") return "Unimed • Mensalidade";
+    if (route === "relatorio-saude") return "Relatório • Saúde";
     if (route === "convenio-laboratorio-santa-cruz") return "Laboratório Santa Cruz";
     if (route === "convenio-centro-diagnostico-capao-raso") return "Centro de Diagnóstico Capão Raso";
     if (route === "convenio-policlinica-capao-raso") return "Policlínica Capão Raso";
@@ -77,6 +81,7 @@ export default function App() {
   function go(to: Route) {
     if (to === "employees") window.location.hash = "#/employees";
     else if (to === "vale-mercado") window.location.hash = "#/vale-mercado";
+    else if (to === "relatorio-saude") window.location.hash = "#/relatorio-saude";
     else if (to === "unimed") window.location.hash = "#/unimed";
     else if (to === "unimed-mensalidade") window.location.hash = "#/unimed-mensalidade";
     else if (to === "convenio-laboratorio-santa-cruz") window.location.hash = "#/convenio-laboratorio-santa-cruz";
@@ -119,6 +124,13 @@ export default function App() {
             onClick={() => go("unimed-mensalidade")}
           >
             Unimed (Mensalidade)
+          </button>
+
+          <button
+            className={"sidebtn" + (route === "relatorio-saude" ? " active" : "")}
+            onClick={() => go("relatorio-saude")}
+          >
+            Relatório (Saúde)
           </button>
 
           <div className="sidegroup">
@@ -205,6 +217,8 @@ export default function App() {
           <EmployeesPage />
         ) : route === "vale-mercado" ? (
           <ValeMercadoPage />
+        ) : route === "relatorio-saude" ? (
+          <RelatorioSaudePage />
         ) : route === "unimed-mensalidade" ? (
           <UnimedMensalidadePage />
         ) : route === "unimed" ? (

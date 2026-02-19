@@ -7,6 +7,7 @@ import { voucherMealRouter } from "./routes/voucherMeal";
 import { unimedRouter } from "./routes/unimed";
 import { unimedMonthlyRouter } from "./routes/unimedMonthly";
 import { medicalConveniosRouter } from "./routes/medicalConvenios";
+import { reportsRouter } from "./routes/reports";
 
 const app = express();
 
@@ -35,6 +36,10 @@ app.use("/unimed-monthly", unimedMonthlyRouter);
 
 // Convênios médicos (Laboratório/Clínicas)
 app.use("/medical-convenios", medicalConveniosRouter);
+
+
+// Relatórios
+app.use("/reports", reportsRouter);
 
 
 
