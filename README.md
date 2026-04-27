@@ -1,977 +1,247 @@
-# Documentação Técnica - RH Gestão de Funcionários
+# RH • Gestão de Funcionários e Custos de Benefícios
 
-## 📋 Índice
-
-1. [Visão Geral](#visão-geral)
-2. [Arquitetura do Sistema](#arquitetura-do-sistema)
-3. [Tecnologias Utilizadas](#tecnologias-utilizadas)
-4. [Estrutura do Projeto](#estrutura-do-projeto)
-5. [Modelo de Dados](#modelo-de-dados)
-6. [API Backend](#api-backend)
-7. [Frontend](#frontend)
-8. [Configuração e Instalação](#configuração-e-instalação)
-9. [Detalhes Técnicos](#detalhes-técnicos)
-10. [Fluxos de Trabalho](#fluxos-de-trabalho)
+Sistema interno de RH para apurar, ratear e fechar mensalmente os **custos de benefícios** dos colaboradores (vale mercado, vale refeição, plano de saúde, mensalidade Unimed, convênios médicos, farmácia, lanche, reembolso escola e vale transporte). Substitui o controle em planilhas: cada nota fiscal vira uma "competência" no sistema, com rateio automático entre empresa e colaborador, fechamento controlado e relatórios consolidados de saúde por centro de custo.
 
 ---
 
-## 🎯 Visão Geral
+## 📌 Visão geral
 
-O **RH Gestão de Funcionários** é um sistema completo para gestão de funcionários e controle de custos de benefícios empresariais. O sistema permite:
+| Grupo | Perfil | Uso típico |
+| --- | --- | --- |
+| **RH / Departamento Pessoal** | Operador principal | Cadastra funcionários, lança notas, ajusta rateios, fecha competências |
+| **Financeiro / Controladoria** | Consulta | Confere totais, divergências e rateio por centro de custo antes de pagar |
+| **Gestão** | Leitura | Acompanha custos consolidados de saúde (Unimed + convênios) via Relatório |
 
-- **Cadastro e gestão de funcionários**: CRUD completo com controle de admissão/demissão
-- **Gestão de Vale Mercado**: Rateio de custos entre empresa e funcionários (95% empresa / 5% funcionários)
-- **Gestão de Vale Refeição**: Controle de faturas e rateio (80% empresa / 20% funcionários) para duas filiais
-- **Gestão de Plano de Saúde (Unimed)**: Rateio de custos médicos por competência
-- **Gestão de Convênios Médicos**: Controle de múltiplos prestadores (Laboratórios e Clínicas)
-
-O sistema foi desenvolvido como um **MVP (Minimum Viable Product)** focado em funcionalidades essenciais de cadastro, edição, demissão e listagem com filtros avançados.
+> O sistema **não possui login/autenticação** — é uso interno em rede confiável. O controle é feito pelo acesso à URL/instância e pela separação dos perfis acima por convenção operacional.
 
 ---
 
-## 🏗️ Arquitetura do Sistema
+## 🧱 Stack técnica
 
-O projeto segue uma arquitetura **monorepo** com separação clara entre backend e frontend:
+- **Node.js** + **TypeScript** `5.5.4`
+- **Express** `4.19.2` (API REST)
+- **Prisma ORM** `5.22.0` + **MySQL** `8.0`
+- **Zod** `3.23.8` (validação de payloads)
+- **React** `18.3.1` + **Vite** `5.4.6` (SPA)
+- **axios** `1.7.4` (cliente HTTP)
+- **recharts** `3.6.0` (gráficos do Relatório de Saúde)
+- **ts-node-dev** `2.0.0` (dev server da API)
+
+> *Monorepo com **npm workspaces*** (`api/` e `web/`). Rodar `npm install` na raiz instala os dois pacotes — não rode `npm install` dentro de `api/` ou `web/` separadamente.
+>
+> *Prisma Client é gerado no `postinstall`* da API. Se você alterar `schema.prisma` precisa rodar `npm run prisma:migrate -w api` (gera migration + client) ou `npm run prisma:generate -w api` (só client).
+>
+> *MySQL `utf8mb4` é obrigatório* — campos como `note` aceitam acentuação e símbolos. Não troque por `utf8` legado.
+
+---
+
+## 🗂️ Estrutura do projeto
 
 ```
 rh-gestao-funcionarios/
-├── api/          # Backend (Node.js + Express + Prisma)
-├── web/          # Frontend (React + TypeScript + Vite)
-└── docker-compose.yml  # Infraestrutura (MySQL + Adminer)
-```
-
-### Padrão Arquitetural
-
-- **Backend**: API RESTful com Express.js
-- **Frontend**: SPA (Single Page Application) com React
-- **Banco de Dados**: MySQL 8.0 (via Docker)
-- **ORM**: Prisma para modelagem e acesso aos dados
-- **Validação**: Zod para validação de schemas
-
----
-
-## 🛠️ Tecnologias Utilizadas
-
-### Backend (`api/`)
-
-| Tecnologia | Versão | Propósito |
-|------------|--------|-----------|
-| **Node.js** | 18+ | Runtime JavaScript |
-| **TypeScript** | ^5.5.4 | Linguagem tipada |
-| **Express** | ^4.19.2 | Framework web |
-| **Prisma** | ^5.22.0 | ORM e migrações |
-| **Zod** | ^3.23.8 | Validação de schemas |
-| **CORS** | ^2.8.5 | Controle de acesso CORS |
-| **dotenv** | ^16.4.5 | Gerenciamento de variáveis de ambiente |
-| **ts-node-dev** | ^2.0.0 | Hot reload em desenvolvimento |
-
-### Frontend (`web/`)
-
-| Tecnologia | Versão | Propósito |
-|------------|--------|-----------|
-| **React** | ^18.3.1 | Biblioteca UI |
-| **TypeScript** | ^5.5.4 | Linguagem tipada |
-| **Vite** | ^5.4.6 | Build tool e dev server |
-| **Axios** | ^1.7.4 | Cliente HTTP |
-| **Recharts** | ^3.6.0 | Gráficos e visualizações |
-
-### Infraestrutura
-
-| Tecnologia | Versão | Propósito |
-|------------|--------|-----------|
-| **MySQL** | 8.0 | Banco de dados relacional |
-| **Docker** | - | Containerização |
-| **Adminer** | latest | Interface web para MySQL |
-
----
-
-## 📁 Estrutura do Projeto
-
-### Estrutura de Diretórios
-
-```
-rh-gestao-funcionarios/
-│
-├── api/                                    # Backend API
-│   ├── src/
-│   │   ├── lib/                           # Bibliotecas utilitárias
-│   │   │   ├── format.ts                  # Funções de formatação
-│   │   │   └── prisma.ts                  # Cliente Prisma singleton
-│   │   ├── routes/                        # Rotas da API
-│   │   │   ├── employees.ts               # CRUD de funcionários
-│   │   │   ├── voucherMarket.ts           # Vale Mercado
-│   │   │   ├── voucherMeal.ts             # Vale Refeição
-│   │   │   ├── unimed.ts                  # Plano de Saúde Unimed
-│   │   │   └── medicalConvenios.ts        # Convênios médicos
-│   │   └── server.ts                      # Servidor Express
+├── docker-compose.yml         # MySQL 8 + Adminer para dev local (porta 3308 e 8080)
+├── package.json               # Workspaces: api, web
+├── api/
 │   ├── prisma/
-│   │   ├── schema.prisma                  # Schema do banco de dados
-│   │   ├── migrations/                    # Migrações do Prisma
-│   │   ├── seed.ts                        # Script de seed
-│   │   └── seed.js                        # Script de seed (alternativo)
-│   ├── data/
-│   │   └── funcionarios.json               # Dados iniciais para seed
-│   ├── .env.example                       # Exemplo de variáveis de ambiente
-│   ├── package.json                       # Dependências do backend
-│   └── tsconfig.json                      # Configuração TypeScript
-│
-├── web/                                    # Frontend React
-│   ├── src/
-│   │   ├── components/                    # Componentes React
-│   │   │   └── Sidebar.jsx                # Barra lateral de navegação
-│   │   ├── layout/                        # Componentes de layout
-│   │   │   └── AppShell.jsx               # Shell da aplicação
-│   │   ├── pages/                         # Páginas da aplicação
-│   │   │   ├── EmployeesPage.tsx          # Página de funcionários
-│   │   │   ├── ValeMercadoPage.tsx        # Página Vale Mercado
-│   │   │   ├── ValeRefeicaoPage.tsx       # Vale Refeição Filial 01
-│   │   │   ├── ValeRefeicaoFilial02Page.tsx # Vale Refeição Filial 02
-│   │   │   ├── UnimedPage.tsx             # Página Unimed
-│   │   │   ├── LaboratorioSantaCruzPage.tsx
-│   │   │   ├── CentroDiagnosticoCapaoRasoPage.tsx
-│   │   │   ├── PoliclinicaCapaoRasoPage.tsx
-│   │   │   ├── PoliclinicaMansurPage.tsx
-│   │   │   └── MedicalConvenioTemplate.tsx # Template para convênios
-│   │   ├── services/                      # Serviços de API
-│   │   │   ├── apiClient.js               # Cliente HTTP base
-│   │   │   └── valeRefeicaoApi.js         # API específica Vale Refeição
-│   │   ├── styles/                        # Estilos CSS
-│   │   │   └── app.css                    # Estilos da aplicação
-│   │   ├── api.ts                         # Tipos e cliente API
-│   │   ├── App.tsx                        # Componente principal
-│   │   ├── Shell.tsx                      # Shell wrapper
-│   │   ├── main.tsx                       # Entry point React
-│   │   └── styles.css                     # Estilos globais
-│   ├── index.html                         # HTML base
-│   ├── package.json                       # Dependências do frontend
-│   ├── tsconfig.json                      # Configuração TypeScript
-│   └── vite.config.ts                     # Configuração Vite
-│
-├── docker-compose.yml                     # Configuração Docker
-├── package.json                           # Workspace root (monorepo)
-├── .gitignore                             # Arquivos ignorados pelo Git
-└── README.md                              # Documentação básica
+│   │   ├── schema.prisma      # Modelo único: Employee + Invoices/Allocations por benefício
+│   │   ├── migrations/        # Histórico de migrations (não editar manualmente)
+│   │   └── seed.ts            # Seed de funcionários (npm run seed)
+│   └── src/
+│       ├── server.ts          # Bootstrap Express + montagem de routers
+│       ├── lib/               # Helpers (Prisma client, utilitários de cálculo)
+│       └── routes/
+│           ├── employees.ts             # CRUD de funcionários
+│           ├── voucherMarket.ts         # Vale Mercado (rateio 95/5)
+│           ├── voucherMeal.ts           # Vale Refeição (filial 1 e 2 — 80/20)
+│           ├── unimed.ts                # Unimed Plano de Saúde (uso por procedimento)
+│           ├── unimedMonthly.ts         # Unimed Mensalidade (titular + dependentes)
+│           ├── medicalConvenios.ts      # 4 provedores (Lab. Santa Cruz, Centro Diag., Policlínicas)
+│           ├── pharmacy.ts              # Farmácia + rateio por centro de custo
+│           ├── snack.ts                 # Lanche por sessão (presença diária)
+│           ├── schoolReimbursement.ts   # Reembolso Escola (35%/50%/100%)
+│           ├── transportVoucher.ts      # Vale Transporte
+│           └── reports.ts               # Consolidado Saúde (Unimed + Convênios)
+└── web/
+    └── src/
+        ├── App.tsx            # Router por hash (#/funcionalidade) + sidebar
+        ├── api.ts             # Cliente axios + tipagens compartilhadas com a API
+        ├── pages/             # Uma página por benefício (ver App.tsx para o mapa)
+        ├── components/        # Tabela, modais, inputs reutilizáveis
+        └── styles.css         # CSS global (sem framework UI)
 ```
 
 ---
 
-## 🗄️ Modelo de Dados
+## 🧩 Funcionalidades por área
 
-O sistema utiliza **Prisma ORM** para gerenciar o modelo de dados. O schema principal está em `api/prisma/schema.prisma`.
+### Funcionários (`/employees`)
+- CRUD com `matricula` única, centro de custo, filial, datas de admissão e desligamento.
+- Flags `voucherMarketExcluded` e `voucherMealExcluded` para excluir definitivamente do rateio dos vales.
+- Funcionários desligados (com `terminationDate`) ainda aparecem em competências antigas, mas não em novas.
 
-### Entidades Principais
+### Vale Mercado (`/voucher-market`)
+- Uma nota por competência (`@@unique([competence])`).
+- Distribuição padrão: **R$ 541,00** por colaborador ativo.
+- Status por colaborador: `DEFAULT` (541), `FALTA` (0), `PROPORCIONAL` (valor editável), `EXCLUIDO` (0, fora do rateio).
+- Totais derivados: empresa **95%** / colaborador **5%**.
 
-#### 1. **Employee** (Funcionário)
+### Vale Refeição — Filial 01 e Filial 02 (`/voucher-meal`)
+- Empresa recebe **duas notas por mês**: 2ª quinzena da competência + 1ª quinzena do mês seguinte.
+- Linhas tipadas (`VoucherMealLineKind`): almoço colaboradores, terceiros/visitantes/doação (relatório), café/lanche/leite (rateio igual entre colaboradores), serviço especial.
+- Filial 02 tem itens próprios: `COFFEE_GENERAL`, `MISC_SODA`, `MISC_MEAL_EVENT`.
+- Rateio do almoço: **20% colaborador** / **80% empresa**. Café e lanche são divididos igualmente entre os colaboradores ativos.
+- `@@unique([competence, branch])` — uma fatura por filial, por mês.
 
-Entidade central do sistema que representa um funcionário.
+### Unimed — Plano de Saúde (`/unimed`)
+- Lança **usos por procedimento** (`PERSONAL` ou `WORK_ACCIDENT`).
+- Acidente de trabalho é 100% empresa; uso pessoal segue regra de coparticipação.
+- Cada uso já grava `amountEmployee` e `amountCompany` rateados (auditoria — evita divergência por arredondamento ao recalcular).
 
-```prisma
-model Employee {
-  id              Int       @id @default(autoincrement())
-  name            String
-  matricula       String    @unique
-  costCenter      String
-  branch          String
-  admissionDate   DateTime  @db.Date
-  terminationDate DateTime? @db.Date
-  
-  voucherMarketExcluded Boolean @default(false)
-  voucherMealExcluded   Boolean @default(false)
-  
-  // Relacionamentos
-  voucherMarketAllocations VoucherMarketAllocation[]
-  voucherMealAllocations   VoucherMealAllocation[]
-  unimedUsages            UnimedUsage[]
-  medicalConvenioUsages   MedicalConvenioUsage[]
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  @@index([branch])
-  @@index([costCenter])
-  @@index([terminationDate])
-}
-```
+### Unimed — Mensalidade (`/unimed-monthly`)
+- Mensalidade fixa por vida: `unitValue` × (`dependents + 1`).
+- Cabeçalho da NF + alocações por colaborador com quantidade de dependentes.
 
-**Campos:**
-- `id`: Identificador único (auto-incremento)
-- `name`: Nome completo do funcionário
-- `matricula`: Matrícula única (não pode ser alterada após criação)
-- `costCenter`: Centro de custo
-- `branch`: Filial (ex: "1", "2")
-- `admissionDate`: Data de admissão
-- `terminationDate`: Data de demissão (nullable para funcionários ativos)
-- `voucherMarketExcluded`: Flag para excluir do Vale Mercado
-- `voucherMealExcluded`: Flag para excluir do Vale Refeição
+### Convênios médicos (`/medical-convenios`)
+- 4 provedores fixos no enum `MedicalConvenioProvider`: **Laboratório Santa Cruz**, **Centro de Diagnóstico Capão Raso**, **Policlínica Capão Raso**, **Policlínica Mansur**.
+- Mesmo modelo de uso da Unimed (procedimento + rateio empresa/colaborador).
+- `@@unique([provider, competence])` — uma fatura por provedor, por mês.
 
-#### 2. **VoucherMarketInvoice** (Fatura Vale Mercado)
+### Farmácia (`/pharmacy`)
+- Lançamento por colaborador, com cálculo automático do **rateio por centro de custo** para a contabilidade (`PharmacyCostCenterRateio`).
 
-Representa uma fatura mensal de Vale Mercado.
+### Lanche (`/snack`)
+- Diferente dos demais: organizado por **sessões** (datas de lanche). Cada `SnackSession` tem `totalAmount` e `perPerson`.
+- `SnackAttendance` registra quem participou de cada sessão. Total do mês = soma das sessões; rateio também sai por centro de custo.
 
-```prisma
-model VoucherMarketInvoice {
-  id            Int                 @id @default(autoincrement())
-  competence    DateTime            @db.Date // 1º dia do mês
-  invoiceNumber String
-  invoiceValue  Decimal             @db.Decimal(10, 2)
-  status        VoucherInvoiceStatus @default(DRAFT)
-  closedAt      DateTime?
-  
-  allocations   VoucherMarketAllocation[]
-  
-  @@unique([competence])
-}
-```
+### Reembolso Escola (`/school-reimbursement`)
+- Percentual da empresa fixo em **35%, 50% ou 100%** (`companyPct`) — não aceita valores arbitrários.
+- Guarda `courseName` e nota livre.
 
-**Status:**
-- `DRAFT`: Rascunho (pode ser editado)
-- `CLOSED`: Fechado (não pode mais ser editado)
+### Vale Transporte (`/transport-voucher`)
+- Alocação por colaborador com valor empresa e valor colaborador.
 
-#### 3. **VoucherMarketAllocation** (Rateio Vale Mercado)
+### Relatórios — Saúde (`/reports`)
+- Consolida **Unimed (uso + mensalidade) + 4 convênios médicos** por competência.
+- Gera gráficos (recharts) e exportação para conferência mensal.
 
-Rateio do Vale Mercado por funcionário.
-
-```prisma
-model VoucherMarketAllocation {
-  id         Int      @id @default(autoincrement())
-  invoiceId  Int
-  employeeId Int
-  amount     Decimal  @db.Decimal(10, 2)
-  status     VoucherMarketAllocationStatus @default(DEFAULT)
-  note       String?
-  
-  invoice    VoucherMarketInvoice @relation(...)
-  employee   Employee             @relation(...)
-  
-  @@unique([invoiceId, employeeId])
-}
-```
-
-**Status de Alocação:**
-- `DEFAULT`: Valor padrão (R$ 541,00)
-- `FALTA`: Valor zero (falta no mês)
-- `PROPORCIONAL`: Valor editável (proporcional)
-- `EXCLUIDO`: Excluído do rateio (valor zero)
-
-**Regra de Rateio:**
-- **95%** empresa
-- **5%** funcionários (rateado entre os participantes)
-
-#### 4. **VoucherMealInvoice** (Fatura Vale Refeição)
-
-Representa uma fatura mensal de Vale Refeição. A empresa recebe **duas notas** por mês:
-- **2ª quinzena** do mês (competência)
-- **1ª quinzena** do mês seguinte
-
-```prisma
-model VoucherMealInvoice {
-  id                  Int                 @id @default(autoincrement())
-  competence          DateTime            @db.Date // 1º dia do mês
-  branch              String              @default("1")
-  
-  invoiceSecondHalfNumber    String  // Nº nota 2ª quinzena
-  invoiceFirstHalfNextNumber String  // Nº nota 1ª quinzena seguinte
-  
-  invoiceSecondHalf    Decimal @db.Decimal(12, 2)  // Total 2ª quinzena
-  invoiceFirstHalfNext Decimal @db.Decimal(12, 2)  // Total 1ª quinzena seguinte
-  
-  status               VoucherInvoiceStatus @default(DRAFT)
-  closedAt             DateTime?
-  
-  allocations          VoucherMealAllocation[]
-  lines                VoucherMealInvoiceLine[]
-  
-  @@unique([competence, branch])
-}
-```
-
-#### 5. **VoucherMealInvoiceLine** (Linhas da Fatura Vale Refeição)
-
-Itens detalhados da fatura (almoço, café, terceiros, etc.).
-
-```prisma
-model VoucherMealInvoiceLine {
-  id        Int               @id @default(autoincrement())
-  invoiceId Int
-  part      VoucherMealInvoicePart  // SECOND_HALF ou FIRST_HALF_NEXT
-  kind      VoucherMealLineKind      // Tipo de item
-  amount    Decimal           @db.Decimal(12, 2)
-  
-  @@unique([invoiceId, part, kind])
-}
-```
-
-**Tipos de Itens (`VoucherMealLineKind`):**
-- `MEAL_LUNCH`: Almoço (colaboradores)
-- `MEAL_LUNCH_THIRD_PARTY`: Almoço terceiros
-- `MEAL_LUNCH_VISITORS`: Almoço visitantes
-- `MEAL_LUNCH_DONATION`: Almoço doação
-- `COFFEE_SANDWICH`: Café/lanches (sanduíche)
-- `COFFEE_COFFEE_LITER`: Café (litro)
-- `COFFEE_COFFEE_MILK_LITER`: Café com leite (litro)
-- `COFFEE_MILK_LITER`: Leite (litro)
-- `SPECIAL_SERVICE`: Serviço especial
-- `COFFEE_GENERAL`: Itens gerais (Filial 02)
-- `MISC_SODA`: Refrigerante (Filial 02)
-- `MISC_MEAL_EVENT`: Evento refeição (Filial 02)
-
-#### 6. **VoucherMealAllocation** (Rateio Vale Refeição)
-
-Rateio do Vale Refeição por funcionário.
-
-```prisma
-model VoucherMealAllocation {
-  id         Int      @id @default(autoincrement())
-  invoiceId  Int
-  employeeId Int
-  employee20 Decimal  @db.Decimal(12, 2)  // 20% funcionário
-  company80  Decimal  @db.Decimal(12, 2)  // 80% empresa
-  total100   Decimal  @db.Decimal(12, 2)  // 100% total
-  
-  @@unique([invoiceId, employeeId])
-}
-```
-
-**Regra de Rateio:**
-- **80%** empresa
-- **20%** funcionário
-
-#### 7. **UnimedInvoice** (Fatura Unimed)
-
-Fatura mensal do plano de saúde Unimed.
-
-```prisma
-model UnimedInvoice {
-  id            Int                 @id @default(autoincrement())
-  competence    DateTime            @db.Date
-  invoiceNumber String              @default("")
-  invoiceValue  Decimal             @db.Decimal(12, 2)
-  status        VoucherInvoiceStatus @default(DRAFT)
-  closedAt      DateTime?
-  
-  usages        UnimedUsage[]
-  
-  @@unique([competence])
-}
-```
-
-#### 8. **UnimedUsage** (Uso Unimed)
-
-Lançamento de uso do plano de saúde por funcionário.
-
-```prisma
-model UnimedUsage {
-  id            Int            @id @default(autoincrement())
-  invoiceId     Int
-  employeeId    Int
-  kind          UnimedUsageKind  // PERSONAL ou WORK_ACCIDENT
-  amountTotal   Decimal        @db.Decimal(12, 2)  // 100%
-  amountEmployee Decimal       @db.Decimal(12, 2)  // Parte funcionário
-  amountCompany  Decimal       @db.Decimal(12, 2)  // Parte empresa
-  note          String?
-  
-  @@index([invoiceId, employeeId])
-}
-```
-
-**Tipos de Uso:**
-- `PERSONAL`: Uso pessoal (rateio padrão)
-- `WORK_ACCIDENT`: Acidente de trabalho (100% empresa)
-
-#### 9. **MedicalConvenioInvoice** (Fatura Convênio Médico)
-
-Fatura mensal de convênios médicos (Laboratórios/Clínicas).
-
-```prisma
-model MedicalConvenioInvoice {
-  id            Int                 @id @default(autoincrement())
-  provider      MedicalConvenioProvider
-  competence    DateTime            @db.Date
-  invoiceNumber String              @default("")
-  invoiceValue  Decimal             @db.Decimal(12, 2)
-  status        VoucherInvoiceStatus @default(DRAFT)
-  closedAt      DateTime?
-  
-  usages        MedicalConvenioUsage[]
-  
-  @@unique([provider, competence])
-}
-```
-
-**Provedores (`MedicalConvenioProvider`):**
-- `LABORATORIO_SANTA_CRUZ`
-- `CENTRO_DIAGNOSTICO_CAPAO_RASO`
-- `POLICLINICA_CAPAO_RASO`
-- `POLICLINICA_MANSUR`
-
-#### 10. **MedicalConvenioUsage** (Uso Convênio Médico)
-
-Lançamento de uso de convênio médico por funcionário (mesma estrutura do UnimedUsage).
+### Ciclo de fechamento (vale para todas as faturas)
+1. Cria-se a fatura/competência em `DRAFT`.
+2. Lança-se notas, alocações ou usos.
+3. Confere-se `diff` (diferença entre total da NF e soma dos rateios).
+4. Fecha-se com status `CLOSED` + `closedAt` — após isso a fatura **não deve ser editada** (cascata `onDelete: Cascade` ainda funciona, mas a UI bloqueia edições).
 
 ---
 
-## 🔌 API Backend
-
-### Configuração do Servidor
-
-O servidor Express está configurado em `api/src/server.ts`:
-
-- **Porta**: 3333 (configurável via `PORT` no `.env`)
-- **CORS**: Configurável via `CORS_ORIGIN` (padrão: `http://localhost:5173`)
-- **Body Parser**: JSON habilitado
-- **Health Check**: `GET /health`
-
-### Estrutura de Rotas
-
-```
-/api
-├── /employees              # Funcionários
-├── /voucher-market         # Vale Mercado
-├── /voucher-meal           # Vale Refeição
-├── /unimed                 # Plano de Saúde Unimed
-└── /medical-convenios       # Convênios Médicos
-```
-
-### Endpoints Detalhados
-
-#### **Funcionários** (`/employees`)
-
-| Método | Endpoint | Descrição |
-|--------|----------|-----------|
-| `GET` | `/employees` | Lista funcionários com filtros e paginação |
-| `GET` | `/employees/:id` | Busca funcionário por ID |
-| `POST` | `/employees` | Cria novo funcionário |
-| `PUT` | `/employees/:id` | Atualiza funcionário (exceto matrícula) |
-| `PATCH` | `/employees/:id/terminate` | Registra demissão |
-| `PATCH` | `/employees/:id/reactivate` | Reativa funcionário (remove demissão) |
-
-**Query Parameters (`GET /employees`):**
-- `status`: `active` | `inactive` | `all` (padrão: `active`)
-- `search`: Busca por nome ou matrícula
-- `branch`: Filtra por filial
-- `costCenter`: Filtra por centro de custo
-- `page`: Número da página (padrão: 1)
-- `pageSize`: Itens por página (padrão: 20, máx: 200)
-
-**Exemplo de Resposta:**
-```json
-{
-  "items": [
-    {
-      "id": 1,
-      "name": "João Silva",
-      "matricula": "001",
-      "costCenter": "CC001",
-      "branch": "1",
-      "admissionDate": "2020-01-15T00:00:00.000Z",
-      "terminationDate": null,
-      "voucherMarketExcluded": false,
-      "voucherMealExcluded": false
-    }
-  ],
-  "total": 100,
-  "page": 1,
-  "pageSize": 20
-}
-```
-
-**Validação de Dados:**
-- Utiliza **Zod** para validação de schemas
-- `admissionDate` e `terminationDate` aceitam formatos:
-  - `YYYY-MM-DD` (ISO)
-  - `YYYYMMDD` (compacto)
-- `matricula` é única e não pode ser alterada após criação
-- `terminationDate` não pode ser anterior a `admissionDate`
-
-#### **Vale Mercado** (`/voucher-market`)
-
-Endpoints para gestão de faturas e rateio do Vale Mercado.
-
-**Principais Funcionalidades:**
-- Criação de faturas por competência
-- Rateio automático entre funcionários
-- Controle de status (DRAFT/CLOSED)
-- Exclusão de funcionários do rateio
-
-#### **Vale Refeição** (`/voucher-meal`)
-
-Endpoints para gestão de faturas e rateio do Vale Refeição.
-
-**Principais Funcionalidades:**
-- Suporte a duas filiais
-- Gestão de duas notas por mês (2ª quinzena + 1ª quinzena seguinte)
-- Rateio de diferentes tipos de itens (almoço, café, terceiros, etc.)
-- Cálculo automático de rateio (80% empresa / 20% funcionário)
-
-#### **Unimed** (`/unimed`)
-
-Endpoints para gestão de faturas e uso do plano de saúde Unimed.
-
-**Principais Funcionalidades:**
-- Criação de faturas por competência
-- Lançamento de usos por funcionário
-- Diferenciação entre uso pessoal e acidente de trabalho
-- Rateio automático (exceto acidente de trabalho = 100% empresa)
-
-#### **Convênios Médicos** (`/medical-convenios`)
-
-Endpoints para gestão de múltiplos prestadores de serviços médicos.
-
-**Provedores Suportados:**
-- Laboratório Santa Cruz
-- Centro de Diagnóstico Capão Raso
-- Policlínica Capão Raso
-- Policlínica Mansur
-
-**Funcionalidades:**
-- Gestão independente por provedor
-- Mesma estrutura de rateio do Unimed
-- Controle de faturas por competência
-
-### Validação e Formatação
-
-O sistema utiliza funções utilitárias em `api/src/lib/format.ts`:
-
-- **`parseDateFlexible()`**: Converte strings de data para objetos Date
-  - Aceita `YYYY-MM-DD` ou `YYYYMMDD`
-- **`normalizeName()`**: Normaliza nomes (remove espaços duplicados)
-- **`normalizeSimple()`**: Remove espaços em branco de strings simples
-
-### Tratamento de Erros
-
-- **400 Bad Request**: Dados inválidos (validação Zod)
-- **404 Not Found**: Recurso não encontrado
-- **409 Conflict**: Conflito (ex: matrícula duplicada)
-- **500 Internal Server Error**: Erro interno do servidor
-
----
-
-## 💻 Frontend
-
-### Arquitetura Frontend
-
-O frontend é uma **SPA (Single Page Application)** construída com React e TypeScript.
-
-### Roteamento
-
-O sistema utiliza **hash-based routing** (sem biblioteca externa):
-
-- `#/employees` → Página de Funcionários
-- `#/vale-mercado` → Vale Mercado
-- `#/vale-refeicao` → Vale Refeição Filial 01
-- `#/vale-refeicao-filial-02` → Vale Refeição Filial 02
-- `#/unimed` → Unimed
-- `#/convenio-laboratorio-santa-cruz` → Laboratório Santa Cruz
-- `#/convenio-centro-diagnostico-capao-raso` → Centro de Diagnóstico
-- `#/convenio-policlinica-capao-raso` → Policlínica Capão Raso
-- `#/convenio-policlinica-mansur` → Policlínica Mansur
-
-### Componentes Principais
-
-#### **App.tsx**
-Componente raiz que gerencia:
-- Estado da rota atual
-- Navegação entre páginas
-- Sidebar com menu de navegação
-- Renderização condicional de páginas
-
-#### **Sidebar**
-Menu lateral com:
-- Navegação principal
-- Grupo expansível para "Convênios médicos"
-- Indicador da página atual
-- Título dinâmico baseado na rota
-
-#### **Páginas**
-Cada módulo possui sua própria página:
-- `EmployeesPage`: CRUD de funcionários
-- `ValeMercadoPage`: Gestão Vale Mercado
-- `ValeRefeicaoPage`: Gestão Vale Refeição Filial 01
-- `ValeRefeicaoFilial02Page`: Gestão Vale Refeição Filial 02
-- `UnimedPage`: Gestão Unimed
-- Páginas de convênios médicos (4 páginas)
-
-### Cliente API
-
-O frontend utiliza **Axios** para comunicação com a API:
-
-```typescript
-// web/src/api.ts
-export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3333",
-});
-```
-
-**Variáveis de Ambiente:**
-- `VITE_API_URL`: URL base da API (padrão: `http://localhost:3333`)
-
-### Tipos TypeScript
-
-Todos os tipos da API estão definidos em `web/src/api.ts`:
-- `Employee`
-- `VoucherMarketInvoice`, `VoucherMarketAllocation`
-- `VoucherMealInvoice`, `VoucherMealAllocation`
-- `UnimedInvoice`, `UnimedUsage`
-- `MedicalConvenioInvoice`, `MedicalConvenioUsage`
-
-### Estilos
-
-O sistema utiliza **CSS puro** (sem frameworks CSS):
-- `web/src/styles.css`: Estilos globais
-- `web/src/styles/app.css`: Estilos da aplicação
-- Classes utilitárias para layout e componentes
-
----
-
-## ⚙️ Configuração e Instalação
+## 🚀 Setup local
 
 ### Pré-requisitos
+- **Node.js 20+** (alinhado ao `@types/node ^20`)
+- **Docker** + **Docker Compose** (para subir MySQL local)
+- **npm 9+** (workspaces)
 
-- **Node.js** 18 ou superior
-- **Docker** e **Docker Compose** (recomendado para MySQL)
-- **npm** ou **yarn**
-
-### Passo a Passo
-
-#### 1. Clonar o Repositório
+### Instalação
 
 ```bash
-git clone <url-do-repositorio>
-cd rh-gestao-funcionarios
-```
-
-#### 2. Subir o Banco de Dados (MySQL + Adminer)
-
-Na raiz do projeto:
-
-```bash
+# 1. Sobe MySQL 8 + Adminer
 docker compose up -d
+
+# 2. Instala dependências dos dois workspaces (a partir da raiz!)
+npm install
+
+# 3. Cria o arquivo de ambiente da API (ver bloco abaixo)
+#    Não há .env.example versionado — crie manualmente.
+
+# 4. Roda as migrations e gera o Prisma Client
+npm run prisma:migrate -w api
+
+# 5. (Opcional) popula funcionários iniciais
+npm run seed -w api
+
+# 6. Sobe API (3333) e Web (5173) em terminais separados
+npm run dev -w api
+npm run dev -w web
 ```
 
-Isso inicia:
-- **MySQL** na porta `3308` (container: `rh_mysql`)
-- **Adminer** na porta `8080` (container: `rh_adminer`)
+Adminer fica em `http://localhost:8080` (servidor: `mysql`, usuário: `root`, senha: `root`, base: `rh`).
 
-**Acesso ao Adminer:**
-- URL: http://localhost:8080
-- Sistema: MySQL
-- Servidor: `mysql`
-- Usuário: `root`
-- Senha: `root`
-- Base de dados: `rh`
+### Variáveis de ambiente
 
-#### 3. Configurar a API
-
-```bash
-cd api
-cp .env.example .env
-```
-
-Edite o arquivo `.env` se necessário:
+`api/.env`:
 
 ```env
+# Banco — MySQL 8 do docker-compose (porta 3308 no host!)
 DATABASE_URL="mysql://root:root@localhost:3308/rh"
+
+# HTTP
 PORT=3333
+
+# CORS — lista separada por vírgula. Use "*" só em dev.
+# Em produção, fixe a origem do front (ex: https://rh.empresa.com.br)
 CORS_ORIGIN="http://localhost:5173"
-SEED_JSON_PATH="./data/funcionarios.json"
 ```
 
-#### 4. Instalar Dependências e Configurar Banco
+`web/.env` (opcional — só se a API não for `localhost:3333`):
 
-```bash
-npm install
-npx prisma generate
-npx prisma migrate dev --name init
-npm run seed
+```env
+# URL pública da API consumida pelo axios
+VITE_API_URL="http://localhost:3333"
 ```
 
-**Comandos explicados:**
-- `npm install`: Instala dependências
-- `npx prisma generate`: Gera o cliente Prisma
-- `npx prisma migrate dev`: Aplica migrações e cria o banco
-- `npm run seed`: Popula o banco com dados iniciais
+### Scripts disponíveis
 
-#### 5. Iniciar a API
+API (`api/`):
+- `npm run dev -w api` — ts-node-dev em modo watch
+- `npm run build -w api` — compila para `dist/`
+- `npm start -w api` — roda `dist/server.js` (produção)
+- `npm run prisma:generate -w api` — regenera Prisma Client
+- `npm run prisma:migrate -w api` — cria migration + aplica no banco
+- `npm run seed -w api` — popula funcionários iniciais
 
-```bash
-npm run dev
-```
-
-A API estará disponível em: http://localhost:3333
-
-**Health Check:** http://localhost:3333/health
-
-#### 6. Configurar e Iniciar o Frontend
-
-Em outro terminal:
-
-```bash
-cd web
-npm install
-npm run dev
-```
-
-O frontend estará disponível em: http://localhost:5173
-
-### Scripts Disponíveis
-
-#### Backend (`api/package.json`)
-
-| Script | Descrição |
-|--------|-----------|
-| `npm run dev` | Inicia servidor em modo desenvolvimento (hot reload) |
-| `npm run build` | Compila TypeScript para JavaScript |
-| `npm run start` | Inicia servidor em produção |
-| `npm run seed` | Executa seed do banco de dados |
-| `npm run prisma:generate` | Gera cliente Prisma |
-| `npm run prisma:migrate` | Executa migrações |
-
-#### Frontend (`web/package.json`)
-
-| Script | Descrição |
-|--------|-----------|
-| `npm run dev` | Inicia servidor de desenvolvimento Vite |
-| `npm run build` | Gera build de produção |
-| `npm run preview` | Preview do build de produção |
+Web (`web/`):
+- `npm run dev -w web` — Vite dev server (5173)
+- `npm run build -w web` — build de produção em `web/dist/`
+- `npm run preview -w web` — serve o build localmente
 
 ---
 
-## 🔧 Detalhes Técnicos
+## 🔥 Banco de dados (MySQL + Prisma)
 
-### Banco de Dados
-
-#### Configuração MySQL
-
-- **Porta**: 3308 (mapeada do container)
-- **Usuário**: root
-- **Senha**: root
-- **Database**: rh
-- **Charset**: utf8mb4 (padrão MySQL 8.0)
-
-#### Migrações Prisma
-
-As migrações estão em `api/prisma/migrations/` e incluem:
-
-1. `20260108173749_init`: Migração inicial
-2. `20260109114320_add_vale_mercado`: Adição de Vale Mercado
-3. `20260116123546_add_vale_refeicao`: Adição de Vale Refeição
-4. `20260129180000_add_unimed`: Adição de Unimed
-5. `20260202193000_add_medical_convenios`: Adição de Convênios Médicos
-6. E outras migrações de ajustes
-
-#### Seed do Banco
-
-O seed (`api/prisma/seed.ts`) lê o arquivo `api/data/funcionarios.json` e:
-- Cria funcionários que não existem
-- Atualiza funcionários existentes (baseado na matrícula)
-- Mantém a integridade dos dados
-
-**Formato do JSON de seed:**
-```json
-[
-  {
-    "Nome": "João Silva",
-    "Matricula": "001",
-    "Centro Custo": "CC001",
-    "Admissao": "20200115",
-    "Demissao": "",
-    "Filial": "1"
-  }
-]
-```
-
-### Segurança
-
-#### CORS
-
-O CORS está configurado para permitir apenas origens específicas:
-
-```typescript
-app.use(cors({
-  origin: process.env.CORS_ORIGIN?.split(",").map(s => s.trim()) ?? "*"
-}));
-```
-
-**Recomendação**: Em produção, configure `CORS_ORIGIN` com as URLs permitidas.
-
-#### Validação de Dados
-
-- **Backend**: Zod para validação de schemas
-- **Frontend**: Validação básica antes de enviar requisições
-- **Banco**: Constraints do Prisma (unique, foreign keys)
-
-### Performance
-
-#### Índices do Banco
-
-O schema Prisma define índices estratégicos:
-
-- `Employee`: `branch`, `costCenter`, `terminationDate`, `voucherMarketExcluded`, `voucherMealExcluded`
-- `VoucherMarketInvoice`: `competence` (unique), `invoiceNumber`
-- `VoucherMealInvoice`: `competence + branch` (unique), `branch`
-- Relacionamentos: índices em foreign keys
-
-#### Paginação
-
-A API de funcionários implementa paginação:
-- Padrão: 20 itens por página
-- Máximo: 200 itens por página
-- Query parameters: `page` e `pageSize`
-
-### Tratamento de Erros
-
-#### Backend
-
-- Validação com Zod retorna erros estruturados
-- Erros do Prisma são tratados (ex: P2002 para duplicatas)
-- Mensagens de erro em português
-
-#### Frontend
-
-- Tratamento de erros HTTP com Axios
-- Feedback visual para o usuário
-- Validação de formulários
-
-### Desenvolvimento
-
-#### Hot Reload
-
-- **Backend**: `ts-node-dev` com `--respawn` e `--transpile-only`
-- **Frontend**: Vite HMR (Hot Module Replacement)
-
-#### TypeScript
-
-- **Strict mode**: Habilitado
-- **Target**: ES2020+
-- **Module**: ESNext (frontend) / CommonJS (backend)
-
-### Monorepo
-
-O projeto utiliza **npm workspaces**:
-
-```json
-{
-  "workspaces": ["api", "web"]
-}
-```
-
-Isso permite:
-- Gerenciamento centralizado de dependências
-- Compartilhamento de código entre projetos
-- Scripts unificados
+- **Engine:** MySQL 8.0 (não testado em MariaDB — não use).
+- **Charset:** `utf8mb4` (default do MySQL 8). Se você importar um dump antigo em `latin1`, acentuação quebra silenciosamente.
+- **Migrations:** `prisma/migrations/` — histórico linear, **não edite migrations já aplicadas**. Para alterar schema: edite `schema.prisma` → `npm run prisma:migrate -w api -- --name minha_alteracao`.
+- **Reset em dev:** `npx prisma migrate reset --schema api/prisma/schema.prisma` (apaga o banco inteiro — só use no MySQL local do docker).
+- **Cascata:** todas as `Allocation`/`Usage` têm `onDelete: Cascade`. Apagar uma `Invoice` apaga todas as alocações dela. **Não apague faturas `CLOSED` sem confirmar com o RH** — o histórico mensal vai junto.
+- **Pegadinha do `@@unique([competence])`:** se você tentar criar duas faturas para o mesmo mês (ex: dois `2026-04-01`), o Prisma falha com `P2002`. Verifique se já não existe DRAFT antes de criar.
+- **Pegadinha do Decimal:** todos os valores monetários são `Decimal(12,2)`. No frontend chegam como **string** (`"541.00"`) — sempre converter com `Number()` antes de operações matemáticas, nunca somar como string.
+- **Porta do MySQL:** o `docker-compose.yml` expõe **3308** no host (não 3306) para não colidir com instalações locais. O `DATABASE_URL` precisa refletir isso.
+- **Erro `P1001` (can't reach database):** geralmente é o container parado. Rode `docker compose ps` e `docker compose up -d` antes de mexer no `DATABASE_URL`.
 
 ---
 
-## 🔄 Fluxos de Trabalho
+## 📦 Deploy
 
-### Fluxo de Cadastro de Funcionário
-
-1. Usuário acessa `/employees`
-2. Clica em "Novo Funcionário"
-3. Preenche formulário (nome, matrícula, centro de custo, filial, data admissão)
-4. Frontend valida dados
-5. Envia `POST /employees` para API
-6. API valida com Zod
-7. Prisma cria registro no banco
-8. Retorna funcionário criado
-9. Frontend atualiza lista
-
-### Fluxo de Demissão
-
-1. Usuário seleciona funcionário
-2. Clica em "Demitir"
-3. Informa data de demissão
-4. Frontend envia `PATCH /employees/:id/terminate`
-5. API valida data (não pode ser anterior à admissão)
-6. Prisma atualiza `terminationDate`
-7. Funcionário passa a aparecer como "inativo"
-
-### Fluxo de Rateio Vale Mercado
-
-1. Usuário acessa `/vale-mercado`
-2. Seleciona competência (mês)
-3. Cria nova fatura ou edita existente
-4. Informa número e valor da nota
-5. Sistema calcula rateio automático:
-   - Lista funcionários ativos não excluídos
-   - Distribui valor padrão (R$ 541,00) ou proporcional
-6. Usuário pode ajustar valores individuais
-7. Sistema calcula totais:
-   - Soma dos rateios
-   - 95% empresa
-   - 5% funcionários
-8. Usuário fecha fatura (status CLOSED)
-
-### Fluxo de Rateio Vale Refeição
-
-1. Usuário acessa `/vale-refeicao` (Filial 01 ou 02)
-2. Seleciona competência
-3. Cria/edita fatura
-4. Informa valores das duas notas:
-   - 2ª quinzena do mês
-   - 1ª quinzena do mês seguinte
-5. Lança itens detalhados (almoço, café, terceiros, etc.)
-6. Sistema calcula rateio:
-   - Almoço: rateado entre funcionários (80% empresa / 20% funcionário)
-   - Café: rateado igualmente entre funcionários
-   - Terceiros: apenas relatório (não rateado)
-7. Usuário fecha fatura
-
-### Fluxo de Gestão Unimed
-
-1. Usuário acessa `/unimed`
-2. Seleciona competência
-3. Cria/edita fatura
-4. Informa número e valor da nota
-5. Lança usos por funcionário:
-   - Tipo: pessoal ou acidente de trabalho
-   - Valor total do procedimento
-6. Sistema calcula rateio:
-   - Pessoal: rateio padrão (funcionário/empresa)
-   - Acidente: 100% empresa
-7. Usuário fecha fatura
+- **Branch de produção:** `main` (atualmente trabalhando em `master`; merge para `main` antes de publicar).
+- **Web:** build estático (`web/dist/`) — publique em qualquer host de SPA (Nginx, Vercel, etc.). Como o roteamento é por **hash** (`#/rota`), não precisa de configuração de fallback `index.html`.
+- **API:** Node 20+ rodando `npm run build -w api && npm start -w api`. Precisa de MySQL acessível via `DATABASE_URL`.
+- **Variáveis em produção:** configurar `DATABASE_URL`, `PORT`, `CORS_ORIGIN` no host da API e `VITE_API_URL` **em build time** no front (Vite injeta no bundle — não dá para mudar depois sem rebuildar).
+- **Migrations:** `npx prisma migrate deploy` antes de subir a nova versão da API. **Não rode `migrate dev` em produção** — ele pode propor reset.
+- **Não publicado automaticamente:** `docker-compose.yml` é só dev; `seed.ts` não roda em prod; arquivos `.env` nunca versionados (ver `.gitignore`).
 
 ---
 
-## 📝 Notas Adicionais
+## 📝 Convenções de código
 
-### Convenções de Código
-
-- **Backend**: TypeScript com tipos explícitos
-- **Frontend**: TypeScript com componentes funcionais React
-- **Nomenclatura**: 
-  - Variáveis: camelCase
-  - Componentes: PascalCase
-  - Arquivos: PascalCase (componentes), camelCase (utilitários)
-
-### Próximos Passos Sugeridos
-
-- [ ] Autenticação e autorização
-- [ ] Logs estruturados
-- [ ] Testes unitários e de integração
-- [ ] Documentação da API (Swagger/OpenAPI)
-- [ ] Deploy automatizado (CI/CD)
-- [ ] Backup automático do banco
-- [ ] Dashboard com métricas e gráficos
-
-### Limitações Conhecidas
-
-- Sem autenticação/autorização
-- Sem validação de permissões
-- Sem sistema de auditoria/logs
-- Sem cache de consultas
-- Sem rate limiting na API
+- **Idioma:** comentários, mensagens de erro e nomes de UI em **português**. Identificadores de código (modelos, rotas, tipos) em **inglês** — ex: `VoucherMarketAllocation`, `competence`, `invoiceValue`.
+- **Tipos compartilhados:** o front em `web/src/api.ts` espelha manualmente os tipos do Prisma. Ao alterar `schema.prisma`, atualize `api.ts` no mesmo PR — não há geração automática.
+- **Validação de payload:** usar `zod` em todas as rotas que aceitam body. Não confiar em validação só do front.
+- **Decimal:** valores monetários trafegam como **string** entre API↔front. Nunca `parseFloat` cru — perde precisão. Use os helpers em `api/src/lib/` ou converta apenas em totais já consolidados pelo backend.
+- **Cálculos críticos (rateio, %):** sempre feitos no **backend** e gravados nas colunas `amountEmployee`/`amountCompany`. O frontend só exibe — não recalcula.
+- **CORS:** nunca deixe `CORS_ORIGIN=*` em produção. A API é totalmente aberta (sem auth), então a origem é a única barreira.
+- **Não exponha `DATABASE_URL`** no front, em logs ou em respostas da API.
+- **Hash routing no front:** ao adicionar página nova, registre em `App.tsx` (tipo `Route`, `getRouteFromHash`, `go`, sidebar e render).
 
 ---
 
-## 📞 Suporte
+## 📧 Contato
 
-Para dúvidas ou problemas:
-1. Consulte esta documentação
-2. Verifique os logs do servidor
-3. Consulte o código-fonte
-4. Entre em contato com a equipe de desenvolvimento
-
----
-
-**Última atualização**: Fevereiro 2026
+Dúvidas, bugs ou sugestões: **gustavo@fgvtn.com.br**
