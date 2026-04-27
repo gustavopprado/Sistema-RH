@@ -9,7 +9,6 @@ Sistema interno de RH para apurar, ratear e fechar mensalmente os **custos de be
 | Grupo | Perfil | Uso típico |
 | --- | --- | --- |
 | **RH / Departamento Pessoal** | Operador principal | Cadastra funcionários, lança notas, ajusta rateios, fecha competências |
-| **Financeiro / Controladoria** | Consulta | Confere totais, divergências e rateio por centro de custo antes de pagar |
 | **Gestão** | Leitura | Acompanha custos consolidados de saúde (Unimed + convênios) via Relatório |
 
 > O sistema **não possui login/autenticação** — é uso interno em rede confiável. O controle é feito pelo acesso à URL/instância e pela separação dos perfis acima por convenção operacional.
