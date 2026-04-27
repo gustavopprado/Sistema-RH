@@ -12,6 +12,7 @@ Sistema interno de RH para apurar, ratear e fechar mensalmente os **custos de be
 | **Gestão** | Leitura | Acompanha custos consolidados de saúde (Unimed + convênios) via Relatório |
 
 > O sistema **não possui login/autenticação** — é uso interno em rede confiável. O controle é feito pelo acesso à URL/instância e pela separação dos perfis acima por convenção operacional.
+> O sistema tera sistema de login para o RH quando for finalizado!
 
 ---
 
